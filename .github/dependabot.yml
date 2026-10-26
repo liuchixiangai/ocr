@@ -1,0 +1,40 @@
+# Weekly dependency update pull requests.
+# The Windows tesserocr wheel (a direct URL in requirements-win.txt) isn't
+# tracked: update it by hand from simonflueckiger/tesserocr-windows_build.
+# Bumping ruff in requirements-dev.txt also needs the same version in
+# .pre-commit-config.yaml (tests/test_packaging.py checks that they match).
+version: 2
+updates:
+  - package-ecosystem: pip
+    # requirements*.txt in the repository root
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups:
+      python-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Qt upgrades need the src/ui_*.py files regenerated and manual testing
+      - dependency-name: PySide6-Essentials
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: numpy
+        update-types: ["version-update:semver-major"]
+      - dependency-name: opencv-python-headless
+        update-types: ["version-update:semver-major"]
+      - dependency-name: opencv-python
+        update-types: ["version-update:semver-major"]
+      # requirements-eval.txt: OnnxTR 0.9.0 requires huggingface-hub < 2;
+      # lift this once an OnnxTR release allows 2.x
+      - dependency-name: huggingface-hub
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+    groups:
+      github-actions:
+        patterns: ["*"]

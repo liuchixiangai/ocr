@@ -1,0 +1,864 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TcpOutputPage</class>
+ <widget class="QWidget" name="TcpOutputPage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>330</width>
+    <height>900</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_tcpPage">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QScrollArea" name="scrollArea_tcp">
+     <property name="frameShape">
+      <enum>QFrame::NoFrame</enum>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents_tcp">
+      <layout class="QFormLayout" name="formLayout_tcp">
+       <property name="fieldGrowthPolicy">
+        <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+       </property>
+       <property name="rowWrapPolicy">
+        <enum>QFormLayout::WrapLongRows</enum>
+       </property>
+       <property name="horizontalSpacing">
+        <number>6</number>
+       </property>
+       <property name="verticalSpacing">
+        <number>4</number>
+       </property>
+       <property name="leftMargin">
+        <number>6</number>
+       </property>
+       <property name="topMargin">
+        <number>6</number>
+       </property>
+       <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_tcpPreset">
+         <property name="text">
+          <string>Preset</string>
+         </property>
+         <property name="buddy">
+          <cstring>comboBox_tcpPreset</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QWidget" name="widget_tcpPresetRow" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_tcpPresetRow">
+          <property name="spacing">
+           <number>3</number>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QComboBox" name="comboBox_tcpPreset">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>The receiving program. A preset sets the port, the template and the options for it; you can change them all.</string>
+            </property>
+            <property name="sizeAdjustPolicy">
+             <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+            </property>
+            <property name="minimumContentsLength">
+             <number>8</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="toolButton_tcpResetPreset">
+            <property name="toolTip">
+             <string>Set the port, the template and the options of the preset again</string>
+            </property>
+            <property name="text">
+             <string>Reset</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QLabel" name="label_tcpPresetNote">
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_tcpAddress">
+         <property name="text">
+          <string>Address</string>
+         </property>
+         <property name="buddy">
+          <cstring>lineEdit_tcpHost</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QWidget" name="widget_tcpAddressRow" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_tcpAddressRow">
+          <property name="spacing">
+           <number>3</number>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QLineEdit" name="lineEdit_tcpUrl">
+            <property name="minimumSize">
+             <size>
+              <width>60</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="accessibleName">
+             <string>WebSocket URL</string>
+            </property>
+            <property name="toolTip">
+             <string>The WebSocket address of the receiving server (ws:// or wss://). A token can go in the URL or in Headers</string>
+            </property>
+            <property name="placeholderText">
+             <string notr="true">wss://example.com/scores</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEdit_tcpHost">
+            <property name="minimumSize">
+             <size>
+              <width>60</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="accessibleName">
+             <string>Host</string>
+            </property>
+            <property name="toolTip">
+             <string>The address of the receiving program's computer (localhost if it runs on this computer)</string>
+            </property>
+            <property name="text">
+             <string notr="true">localhost</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_tcpColon">
+            <property name="text">
+             <string notr="true">:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEdit_tcpPort">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>52</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="accessibleName">
+             <string>Port</string>
+            </property>
+            <property name="toolTip">
+             <string>The port the receiving program listens on (set in that program)</string>
+            </property>
+            <property name="placeholderText">
+             <string>Port</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="comboBox_tcpTransport">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="accessibleName">
+             <string>Transport</string>
+            </property>
+            <property name="toolTip">
+             <string>TCP connects to the receiving program and keeps the connection open. UDP sends each message as a datagram, without a connection. TCP server: ScoreSight listens on the port, and every program that connects to it gets the messages. WebSocket connects to a ws:// or wss:// URL and sends each message as a WebSocket message.</string>
+            </property>
+            <item>
+             <property name="text">
+              <string notr="true">TCP</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string notr="true">UDP</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>TCP server</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string notr="true">WebSocket</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_tcpHeaders">
+         <property name="text">
+          <string>Headers</string>
+         </property>
+         <property name="buddy">
+          <cstring>plainTextEdit_tcpHeaders</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QPlainTextEdit" name="plainTextEdit_tcpHeaders">
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>52</height>
+          </size>
+         </property>
+         <property name="accessibleName">
+          <string>WebSocket headers</string>
+         </property>
+         <property name="toolTip">
+          <string>Extra headers for the WebSocket connection, one "Name: value" per line, for example an Authorization token</string>
+         </property>
+         <property name="tabChangesFocus">
+          <bool>true</bool>
+         </property>
+         <property name="lineWrapMode">
+          <enum>QPlainTextEdit::NoWrap</enum>
+         </property>
+         <property name="placeholderText">
+          <string notr="true">Authorization: Bearer …</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QWidget" name="widget_tcpStartRow" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_tcpStartRow">
+          <property name="spacing">
+           <number>6</number>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QPushButton" name="pushButton_tcpStart">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="accessibleName">
+             <string>Start or stop the TCP / UDP output</string>
+            </property>
+            <property name="toolTip">
+             <string>Connect and send the readings, or stop</string>
+            </property>
+            <property name="text">
+             <string notr="true">Start sending</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_tcpStart">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <widget class="QLabel" name="label_tcpReply">
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_tcpCaspar">
+         <property name="title">
+          <string notr="true">CasparCG</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_tcpCaspar">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+          </property>
+          <property name="rowWrapPolicy">
+           <enum>QFormLayout::WrapLongRows</enum>
+          </property>
+          <property name="verticalSpacing">
+           <number>3</number>
+          </property>
+          <property name="leftMargin">
+           <number>6</number>
+          </property>
+          <property name="topMargin">
+           <number>6</number>
+          </property>
+          <property name="rightMargin">
+           <number>6</number>
+          </property>
+          <property name="bottomMargin">
+           <number>6</number>
+          </property>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_tcpChannel">
+            <property name="text">
+             <string>Channel</string>
+            </property>
+            <property name="buddy">
+             <cstring>spinBox_tcpChannel</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="spinBox_tcpChannel">
+            <property name="toolTip">
+             <string>CasparCG's video channel ({channel} in the templates)</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>9999</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_tcpLayer">
+            <property name="text">
+             <string>Layer</string>
+            </property>
+            <property name="buddy">
+             <cstring>spinBox_tcpLayer</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="spinBox_tcpLayer">
+            <property name="toolTip">
+             <string>The layer of the channel ({layer} in the templates)</string>
+            </property>
+            <property name="minimum">
+             <number>-9999</number>
+            </property>
+            <property name="maximum">
+             <number>9999</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_tcpCgLayer">
+            <property name="text">
+             <string>CG layer</string>
+            </property>
+            <property name="buddy">
+             <cstring>spinBox_tcpCgLayer</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="spinBox_tcpCgLayer">
+            <property name="toolTip">
+             <string>The template's layer inside the CG producer ({cg_layer} in the templates)</string>
+            </property>
+            <property name="maximum">
+             <number>9999</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_tcpTemplateName">
+            <property name="text">
+             <string>Template name</string>
+            </property>
+            <property name="buddy">
+             <cstring>lineEdit_tcpTemplateName</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLineEdit" name="lineEdit_tcpTemplateName">
+            <property name="toolTip">
+             <string>The template's file name in CasparCG's templates folder, without .html ({template} in the templates)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QWidget" name="widget_tcpCasparButtons" native="true">
+            <layout class="QHBoxLayout" name="horizontalLayout_tcpCasparButtons">
+             <property name="spacing">
+              <number>3</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QPushButton" name="pushButton_tcpLoad">
+               <property name="toolTip">
+                <string>Send the “on connect” message again (CG ADD: loads and plays the template)</string>
+               </property>
+               <property name="text">
+                <string>Load</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="pushButton_tcpPlay">
+               <property name="toolTip">
+                <string>CG PLAY: show the template</string>
+               </property>
+               <property name="text">
+                <string>Play</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="pushButton_tcpStop">
+               <property name="toolTip">
+                <string>CG STOP: hide the template (it animates out)</string>
+               </property>
+               <property name="text">
+                <string>Stop</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
+           <widget class="QPushButton" name="pushButton_tcpCopyTemplate">
+            <property name="toolTip">
+             <string>Copy ScoreSight's scorebug template (scoresight_scorebug.html) into CasparCG's templates folder</string>
+            </property>
+            <property name="text">
+             <string>Copy template…</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="label_tcpMode">
+         <property name="text">
+          <string>Send</string>
+         </property>
+         <property name="buddy">
+          <cstring>comboBox_tcpMode</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QComboBox" name="comboBox_tcpMode">
+         <property name="toolTip">
+          <string>A message for each field whose value changed, or one message with every field</string>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+         </property>
+         <property name="minimumContentsLength">
+          <number>8</number>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
+        <widget class="QLabel" name="label_tcpTemplate">
+         <property name="text">
+          <string>Template</string>
+         </property>
+         <property name="buddy">
+          <cstring>plainTextEdit_tcpTemplate</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QPlainTextEdit" name="plainTextEdit_tcpTemplate">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>72</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Each line is sent as a line. Placeholders: {field}, {value}, {json}, {xml}, and {channel}, {layer}, {cg_layer}, {template} for CasparCG. Everything else is sent as it is.</string>
+         </property>
+         <property name="tabChangesFocus">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="0">
+        <widget class="QLabel" name="label_tcpInit">
+         <property name="text">
+          <string>On connect</string>
+         </property>
+         <property name="buddy">
+          <cstring>lineEdit_tcpInit</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="1">
+        <widget class="QLineEdit" name="lineEdit_tcpInit">
+         <property name="toolTip">
+          <string>Sent once after each connection, before the values (for example CasparCG's CG ADD). Empty: nothing.</string>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="0">
+        <widget class="QLabel" name="label_tcpPreview">
+         <property name="text">
+          <string>Preview</string>
+         </property>
+         <property name="buddy">
+          <cstring>plainTextEdit_tcpPreview</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="1">
+        <widget class="QPlainTextEdit" name="plainTextEdit_tcpPreview">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>96</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>What is sent for the current values. ␍ is a carriage return, ␊ a line feed, ␀ a NUL character.</string>
+         </property>
+         <property name="tabChangesFocus">
+          <bool>true</bool>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="0">
+        <widget class="QLabel" name="label_tcpLineEnding">
+         <property name="text">
+          <string>Line ending</string>
+         </property>
+         <property name="buddy">
+          <cstring>comboBox_tcpLineEnding</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="1">
+        <widget class="QComboBox" name="comboBox_tcpLineEnding">
+         <property name="toolTip">
+          <string>What ends each line of a message</string>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+         </property>
+         <property name="minimumContentsLength">
+          <number>8</number>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="0">
+        <widget class="QLabel" name="label_tcpEncoding">
+         <property name="text">
+          <string>Encoding</string>
+         </property>
+         <property name="buddy">
+          <cstring>comboBox_tcpEncoding</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="1">
+        <widget class="QComboBox" name="comboBox_tcpEncoding">
+         <property name="toolTip">
+          <string>The text encoding the receiving program expects. Characters it can't encode are sent as “?”.</string>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+         </property>
+         <property name="minimumContentsLength">
+          <number>8</number>
+         </property>
+        </widget>
+       </item>
+       <item row="13" column="0">
+        <widget class="QLabel" name="label_tcpEscape">
+         <property name="text">
+          <string>Escaping</string>
+         </property>
+         <property name="buddy">
+          <cstring>comboBox_tcpEscape</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="13" column="1">
+        <widget class="QComboBox" name="comboBox_tcpEscape">
+         <property name="toolTip">
+          <string>How the text of the placeholders is escaped, so that a value can't break the protocol</string>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+         </property>
+         <property name="minimumContentsLength">
+          <number>8</number>
+         </property>
+        </widget>
+       </item>
+       <item row="14" column="0" colspan="2">
+        <widget class="QCheckBox" name="checkBox_tcpSendSame">
+         <property name="text">
+          <string notr="true">Also resend unchanged values</string>
+         </property>
+        </widget>
+       </item>
+       <item row="15" column="0">
+        <widget class="QLabel" name="label_tcpMinInterval">
+         <property name="text">
+          <string>At most every</string>
+         </property>
+         <property name="buddy">
+          <cstring>doubleSpinBox_tcpMinInterval</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="15" column="1">
+        <widget class="QDoubleSpinBox" name="doubleSpinBox_tcpMinInterval">
+         <property name="toolTip">
+          <string>The shortest time between two sends: the values that change meanwhile go out together, the latest ones</string>
+         </property>
+         <property name="suffix">
+          <string notr="true"> s</string>
+         </property>
+         <property name="decimals">
+          <number>2</number>
+         </property>
+         <property name="maximum">
+          <double>10.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.050000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="16" column="0">
+        <widget class="QLabel" name="label_tcpRefresh">
+         <property name="text">
+          <string>Resend all every</string>
+         </property>
+         <property name="buddy">
+          <cstring>doubleSpinBox_tcpRefresh</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="16" column="1">
+        <widget class="QDoubleSpinBox" name="doubleSpinBox_tcpRefresh">
+         <property name="toolTip">
+          <string>Send every value again this often, for a receiver that forgets them (a reloaded template, a restarted engine)</string>
+         </property>
+         <property name="suffix">
+          <string notr="true"> s</string>
+         </property>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <double>3600.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>1.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="17" column="0" colspan="2">
+        <widget class="QLabel" name="label_tcpNames">
+         <property name="text">
+          <string>The name each field is sent as ({field}). An empty name leaves the field out.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="18" column="0" colspan="2">
+        <widget class="QTableView" name="tableView_tcpMapping">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>140</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Each field and the name it is sent as. Edit the right column.</string>
+         </property>
+         <attribute name="horizontalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+         <attribute name="horizontalHeaderStretchLastSection">
+          <bool>true</bool>
+         </attribute>
+        </widget>
+       </item>
+       <item row="19" column="0" colspan="2">
+        <widget class="QWidget" name="widget_tcpNamesButtons" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_tcpNamesButtons">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QToolButton" name="toolButton_tcpResetNames">
+            <property name="toolTip">
+             <string>Use the preset's names for every field again</string>
+            </property>
+            <property name="text">
+             <string>Reset names</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_tcpNames">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

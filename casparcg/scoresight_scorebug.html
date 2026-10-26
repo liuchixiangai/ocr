@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<!--
+  ScoreSight scorebug: an HTML template for CasparCG.
+
+  Install: copy this file into CasparCG's templates folder (the
+  <template-path> of casparcg.config; the AMCP command INFO PATHS shows it).
+  ScoreSight's TCP / UDP output, with the CasparCG preset, loads it with
+    CG 1-20 ADD 1 "scoresight_scorebug" 1 "<data>"
+  and sends every change with
+    CG 1-20 UPDATE 1 "<data>"
+
+  CasparCG calls these functions:
+    update(data)  data is a string: templateData XML
+                  (<templateData><componentData id="HomeScore"><data id="text"
+                  value="21"/></componentData>...</templateData>) or a JSON
+                  object ({"HomeScore": "21", ...}). Fields that aren't in an
+                  update keep their value.
+    play()        slides the scorebug in
+    stop()        slides it out
+    next()        does nothing
+    remove()      hides it at once
+
+  Field names are matched without case, spaces or punctuation, so HomeScore,
+  "Home Score" and home_score are the same field:
+    home score, away score, time (or game clock, clock), period (or quarter,
+    half, inning), shot clock, home fouls, away fouls, home name (or home
+    team), away name (or away team). Any other field is shown in a line under
+    the scorebug.
+
+  Preview in a browser, without CasparCG:
+    scoresight_scorebug.html?demo                     sample values
+    scoresight_scorebug.html?poll=http://localhost:18099
+                     the live readings of ScoreSight's HTTP server (/json?pivot)
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>ScoreSight scorebug</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+  }
+  #stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    transform-origin: 0 0;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  #bug {
+    position: absolute;
+    left: 96px;
+    top: 54px;
+    opacity: 0;
+    transform: translateX(-40px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  #bug.in {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  #bug.gone {
+    display: none;
+  }
+  .bar {
+    display: flex;
+    align-items: stretch;
+    height: 64px;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+  .team {
+    display: flex;
+    align-items: center;
+    background: #14213d;
+    padding: 0 18px;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    min-width: 120px;
+  }
+  .team.home {
+    border-left: 8px solid #e63946;
+  }
+  .team.away {
+    border-right: 8px solid #457b9d;
+    justify-content: flex-end;
+  }
+  .score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: #14213d;
+    min-width: 84px;
+    padding: 0 10px;
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .fouls {
+    font-size: 13px;
+    font-weight: 600;
+    color: #5c677d;
+    margin-top: 3px;
+  }
+  .fouls:empty {
+    display: none;
+  }
+  .info {
+    display: flex;
+    align-items: center;
+    background: #0b132b;
+    padding: 0 18px;
+    font-size: 26px;
+    font-weight: 600;
+  }
+  .info:empty {
+    display: none;
+  }
+  #period {
+    color: #ffd166;
+    text-transform: uppercase;
+  }
+  #clock {
+    min-width: 96px;
+    justify-content: center;
+    font-size: 32px;
+  }
+  #shot-clock {
+    background: #e63946;
+    min-width: 48px;
+    justify-content: center;
+  }
+  #extras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  #extras span {
+    background: rgba(11, 19, 43, 0.85);
+    color: #fff;
+    font-size: 18px;
+    padding: 4px 10px;
+  }
+  #extras b {
+    font-weight: 600;
+    color: #a8b2c7;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bug">
+    <div class="bar">
+      <div class="team home" id="home-name">Home</div>
+      <div class="score"><span id="home-score"></span><span class="fouls" id="home-fouls"></span></div>
+      <div class="score"><span id="away-score"></span><span class="fouls" id="away-fouls"></span></div>
+      <div class="team away" id="away-name">Away</div>
+      <div class="info" id="period"></div>
+      <div class="info" id="clock"></div>
+      <div class="info" id="shot-clock"></div>
+    </div>
+    <div id="extras"></div>
+  </div>
+</div>
+<script>
+  "use strict";
+
+  // normalized field name -> element id
+  var FIELDS = {
+    homescore: "home-score",
+    awayscore: "away-score",
+    time: "clock",
+    gameclock: "clock",
+    clock: "clock",
+    period: "period",
+    quarter: "period",
+    half: "period",
+    inning: "period",
+    shotclock: "shot-clock",
+    homefouls: "home-fouls",
+    awayfouls: "away-fouls",
+    homename: "home-name",
+    hometeam: "home-name",
+    awayname: "away-name",
+    awayteam: "away-name"
+  };
+  var DEFAULTS = { "home-name": "Home", "away-name": "Away" };
+  var FOULS = { "home-fouls": true, "away-fouls": true };
+
+  var values = {}; // field name as received -> value
+  var names = {}; // normalized name -> field name as received
+
+  function normalize(name) {
+    return String(name).toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  function parseTemplateData(text) {
+    var result = {};
+    var doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.getElementsByTagName("parsererror").length) {
+      return result;
+    }
+    var components = doc.getElementsByTagName("componentData");
+    for (var i = 0; i < components.length; i++) {
+      var id = components[i].getAttribute("id");
+      if (!id) {
+        continue;
+      }
+      var items = components[i].getElementsByTagName("data");
+      var value = "";
+      for (var j = 0; j < items.length; j++) {
+        if (j === 0 || items[j].getAttribute("id") === "text") {
+          value = items[j].hasAttribute("value")
+            ? items[j].getAttribute("value")
+            : items[j].textContent;
+        }
+      }
+      result[id] = value;
+    }
+    return result;
+  }
+
+  function parseData(data) {
+    if (data === undefined || data === null) {
+      return {};
+    }
+    if (typeof data === "object") {
+      return data;
+    }
+    var text = String(data).trim();
+    if (text.charAt(0) === "{") {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return {};
+      }
+    }
+    if (text.charAt(0) === "<") {
+      return parseTemplateData(text);
+    }
+    return {};
+  }
+
+  function render() {
+    var shown = {};
+    var extras = document.getElementById("extras");
+    extras.textContent = "";
+    Object.keys(values).forEach(function (name) {
+      var id = FIELDS[normalize(name)];
+      var value = values[name] === null ? "" : String(values[name]);
+      if (id) {
+        shown[id] = value;
+        return;
+      }
+      var item = document.createElement("span");
+      var label = document.createElement("b");
+      label.textContent = name;
+      item.appendChild(label);
+      item.appendChild(document.createTextNode(value));
+      extras.appendChild(item);
+    });
+    Object.keys(FIELDS).forEach(function (key) {
+      var id = FIELDS[key];
+      var element = document.getElementById(id);
+      var value = shown.hasOwnProperty(id) ? shown[id] : DEFAULTS[id] || "";
+      if (FOULS[id] && value !== "") {
+        value = "F " + value;
+      }
+      if (element.textContent !== value) {
+        element.textContent = value;
+      }
+    });
+  }
+
+  // --- the functions CasparCG calls ---
+
+  function update(data) {
+    var incoming = parseData(data);
+    Object.keys(incoming).forEach(function (name) {
+      var key = normalize(name);
+      // the same field under another spelling replaces the old one
+      if (names[key] !== undefined && names[key] !== name) {
+        delete values[names[key]];
+      }
+      names[key] = name;
+      values[name] = incoming[name];
+    });
+    render();
+  }
+
+  function play() {
+    var bug = document.getElementById("bug");
+    bug.classList.remove("gone");
+    // let the browser apply "gone" removal before animating in
+    requestAnimationFrame(function () {
+      bug.classList.add("in");
+    });
+  }
+
+  function stop() {
+    document.getElementById("bug").classList.remove("in");
+  }
+
+  function next() {}
+
+  function remove() {
+    var bug = document.getElementById("bug");
+    bug.classList.remove("in");
+    bug.classList.add("gone");
+  }
+
+  // --- layout: the design is 1920x1080, scaled to the channel's size ---
+
+  function fit() {
+    var scale = window.innerWidth / 1920 || 1;
+    document.getElementById("stage").style.transform = "scale(" + scale + ")";
+  }
+  window.addEventListener("resize", fit);
+  fit();
+  render();
+
+  // --- preview in a browser (?demo, ?poll=http://host:18099) ---
+
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    if (params.has("demo")) {
+      update({
+        "Home Score": "21",
+        "Away Score": "17",
+        Time: "04:32",
+        Period: "2nd",
+        "Shot Clock": "14",
+        "Home Fouls": "3",
+        "Away Fouls": "5"
+      });
+      play();
+    }
+    var server = params.get("poll");
+    if (server) {
+      var url = server.replace(/\/+$/, "") + "/json?pivot";
+      var poll = function () {
+        fetch(url, { cache: "no-store" })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(update)
+          .catch(function () {})
+          .then(function () {
+            setTimeout(poll, 250);
+          });
+      };
+      poll();
+      play();
+    }
+  })();
+</script>
+</body>
+</html>

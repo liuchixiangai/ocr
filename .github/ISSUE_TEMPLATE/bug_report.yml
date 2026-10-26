@@ -1,0 +1,166 @@
+name: Bug report
+description: Something in ScoreSight doesn't work as expected (crash, wrong output, freeze, integration not updating...).
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem!
+
+        Before you start, please check the [Troubleshooting guide](https://royshil.github.io/scoresight/troubleshooting.html) and the [FAQ](https://royshil.github.io/scoresight/faq.html). Many common problems (vMix port 8088, RTSP over TCP, OBS source names, recognition tuning) are covered there.
+
+        **Security vulnerabilities** must not be reported here. See [SECURITY.md](https://github.com/royshil/scoresight/security/policy).
+
+  - type: input
+    id: version
+    attributes:
+      label: ScoreSight version
+      description: Shown in the window title and in File > About (ScoreSight > About on macOS), for example `0.2.0`. If you run from source, give the commit SHA (`git rev-parse --short HEAD`).
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      options:
+        - Windows (x64)
+        - macOS on Apple Silicon (arm64)
+        - macOS on Intel (x86_64)
+        - Linux (x86_64)
+        - Other (please describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      description: For example "Windows 11 24H2", "macOS 15.4", "Ubuntu 24.04".
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: How did you install ScoreSight?
+      options:
+        - Installer / DMG / archive from GitHub Releases
+        - Build artifact from a GitHub Actions run (CI build)
+        - Running from source (python src/main.py)
+        - Built myself with PyInstaller
+        - Other (please describe below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source_type
+    attributes:
+      label: Video source type
+      description: Which source(s) were you using when the problem happened?
+      multiple: true
+      options:
+        - USB camera / webcam
+        - Capture card (HDMI/SDI)
+        - NDI
+        - URL - RTSP stream
+        - URL - HTTP stream
+        - Screen capture (window or full screen)
+        - Video file
+        - Not related to a source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outputs
+    attributes:
+      label: Outputs in use
+      description: Which outputs were enabled?
+      multiple: true
+      options:
+        - Text files (.txt / .csv / .xml)
+        - Built-in HTTP server (browser, /json, /xml, /csv)
+        - OBS (WebSocket)
+        - vMix
+        - overlays.uno (UNO)
+        - Outbound HTTP API
+        - None / not related to outputs
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What exactly did you do? The more precise, the faster we can reproduce it.
+      placeholder: |
+        1. Open a video file...
+        2. Add "Home Score" to the scene...
+        3. Enable the vMix output with port 8088...
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The vMix title should show the home score.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include any error messages exactly as shown.
+      placeholder: Nothing changes in vMix. The log shows "Failed to send data to ...".
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log files
+      description: |
+        **Please attach the log files from the session with the problem** by dragging them into this box. Each session writes `scoresight_<date>_<time>.log` and `scoresight_std_<date>_<time>.log`. Attach both.
+
+        Open the folder via **File > View Current Log > Open Log Folder**, or go to:
+        - **Windows:** `%LOCALAPPDATA%\scoresight\scoresight\Logs`
+        - **macOS:** `~/Library/Logs/scoresight`
+        - **Linux:** `~/.local/state/scoresight/log`
+        - (or the folder set in `SCORESIGHT_LOG_DIR`)
+
+        ⚠️ Logs can contain host names, URLs and connection details. Remove passwords and tokens before posting.
+      placeholder: Drag and drop the .log files here, or paste the relevant lines.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or video
+      description: For recognition problems, a screenshot of the viewer with **OSD** on, plus one with **Binary View** on, helps a lot. A short clip of the scoreboard is even better.
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration (optional)
+      description: Export your boxes with **File > Export Configuration** and attach the `.json` file. Exports contain boxes only, but check them before posting.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Hardware (CPU, camera/capture card model), network setup, versions of OBS/vMix, and so on.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched the [existing issues](https://github.com/royshil/scoresight/issues?q=is%3Aissue) and this hasn't been reported yet.
+          required: true
+        - label: I read the [Troubleshooting guide](https://royshil.github.io/scoresight/troubleshooting.html).
+          required: true
+        - label: I can reproduce this with the [latest release](https://github.com/royshil/scoresight/releases/latest).

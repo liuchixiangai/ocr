@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question or share an idea
+    url: https://github.com/royshil/scoresight/discussions
+    about: Questions, ideas and setups to show go to ScoreSight's Discussions, where other users can answer too.
+  - name: Troubleshooting & FAQ
+    url: https://royshil.github.io/scoresight/troubleshooting.html
+    about: Fixes for common problems (vMix port, RTSP streams, OBS, recognition, performance). Please check here first.
+  - name: Documentation
+    url: https://royshil.github.io/scoresight/
+    about: Installation, quickstart, guides and reference for every feature and output.
+  - name: Report a security vulnerability
+    url: https://github.com/royshil/scoresight/security/policy
+    about: Please report security issues privately as described in SECURITY.md, not as a public issue.

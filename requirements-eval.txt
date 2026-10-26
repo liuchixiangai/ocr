@@ -1,0 +1,51 @@
+# Evaluation-only extras for the OCR evaluation harness (ocr_eval/, see
+# docs/development/ocr-eval.md): the pinned requirements of every engine
+# adapter, grouped by engine. Each group is the adapter module's REQUIREMENTS
+# (`python -m ocr_eval requirements <engine>` prints them, and
+# tests/test_ocr_eval_requirements.py checks that this file matches).
+# They are not app dependencies: install them into a SEPARATE virtual
+# environment, together with the app's requirements (Tesseract and
+# ScoreSight's own preprocessing come from there), e.g. on Windows:
+#   uv venv --python 3.13 .venv-eval
+#   uv pip install --python .venv-eval/Scripts/python.exe -r requirements-dev.txt -r requirements-win.txt -r requirements-eval.txt
+# The Tesseract engine (tesseract_scoresight.py) needs nothing beyond
+# requirements.txt.
+-r requirements.txt
+
+# --- PaddleOCR PP-OCRv6/v5 recognizers on onnxruntime (engines/ppocr.py) ---
+# The models (Apache-2.0) are downloaded from the Hugging Face Hub at pinned
+# revisions. onnxruntime 1.24 and later have no macOS x86_64 wheels (the last
+# is 1.23.2, for macOS 13+); an Intel Mac gets that one (not measured).
+onnxruntime==1.31.0 ; sys_platform != "darwin" or platform_machine != "x86_64"
+onnxruntime==1.23.2 ; sys_platform == "darwin" and platform_machine == "x86_64"
+# 1.x: OnnxTR 0.9.0 requires huggingface-hub < 2
+huggingface_hub==1.33.0
+PyYAML==6.0.3
+
+# --- OnnxTR: docTR's PARSeq, ViTSTR, CRNN and VIPTR (engines/onnxtr.py) ---
+# Models are downloaded from OnnxTR's GitHub releases into ~/.cache/onnxtr.
+# Also uses onnxruntime (above).
+onnxtr[cpu-headless]==0.9.0
+
+# --- Windows OCR, Windows.Media.Ocr through pywinrt (engines/windows_ocr.py) ---
+# Also needs Windows' en-US OCR language pack.
+winrt-runtime==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Foundation==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Foundation.Collections==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Globalization==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Graphics.Imaging==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Media.Ocr==3.2.1 ; sys_platform == "win32"
+winrt-Windows.Storage.Streams==3.2.1 ; sys_platform == "win32"
+
+# --- Apple Vision and Live Text through ocrmac (engines/apple_vision.py) ---
+ocrmac==1.0.1 ; sys_platform == "darwin"
+pyobjc-framework-Vision==12.2.2 ; sys_platform == "darwin"
+
+# --- Small vision-language models: florence2, smolvlm, qwen-vl (engines/vlm.py) ---
+# Not installed by this file: the VLM evaluation was stopped (too slow on a
+# CPU for ScoreSight's per-frame loop), and PyTorch is about 1 GB (3 GB with
+# CUDA from PyPI on Linux). To run them anyway, on Linux first install the CPU
+# wheels from https://download.pytorch.org/whl/cpu, then these three:
+# torch==2.14.1
+# torchvision==0.29.1
+# transformers==5.18.0

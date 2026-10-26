@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<!--
+  ScoreSight example overlay. Copy this file, rename it and make it your own:
+  every .html file in ScoreSight's "overlays" folder is served at
+  http://<this computer>:18099/overlay/custom/<file name>
+
+  How it works (the full contract is in ScoreSight's docs, "Overlays"):
+  - /overlay/client.js fills every element with a data-field attribute with
+    that field's latest good value (as text). Until a field has one, the
+    element keeps what you wrote in it here.
+  - It also sets data-state (Success, SameNoChange, FailedFilter, Empty) and
+    data-empty ("true" until the field has a value) on those elements, and adds
+    the class "ss-changed" for a second when the value changes.
+  - For your own logic, listen to the events: ScoreSight.on("change", ...),
+    ScoreSight.on("update", ...), ScoreSight.on("connection", ...).
+  - Opened from somewhere else (a CasparCG template folder, file://), load the
+    client from ScoreSight with its full address instead:
+    <script src="http://192.168.1.20:18099/overlay/client.js"></script>
+
+  Field names must match your boxes' names exactly (here the standard ones).
+  The page is designed for 1920x1080 and scales with the page width.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScoreSight example overlay</title>
+<style>
+  :root {
+    --home: #e63946;
+    --away: #2a9df4;
+    --panel: rgba(10, 14, 26, 0.92);
+    --text: #ffffff;
+    --accent: #ffb400;
+  }
+  /* 1rem = 16px on a 1920px wide page, and in proportion on others */
+  html { font-size: calc(100vw / 120); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    font-family: Bahnschrift, "DIN Alternate", "Roboto Condensed", "Arial Narrow", Arial, sans-serif;
+    color: var(--text);
+  }
+
+  .board {
+    position: absolute;
+    top: 3.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: stretch;
+    background: var(--panel);
+    border-radius: 0.6rem;
+    box-shadow: 0 0.4rem 1.6rem rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+  }
+  .team {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1.4rem;
+  }
+  .team.home { border-left: 0.5rem solid var(--home); }
+  .team.away { border-right: 0.5rem solid var(--away); flex-direction: row-reverse; }
+  .team .name { font-size: 1.7rem; font-weight: 700; letter-spacing: 0.05em; }
+  .team .fouls { font-size: 0.85rem; opacity: 0.7; letter-spacing: 0.08em; }
+  .team .who { display: flex; flex-direction: column; }
+  .team.away .who { align-items: flex-end; }
+  .score {
+    display: inline-block;
+    min-width: 2.2ch;
+    margin: 0 1.2rem;
+    font-size: 3rem;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .middle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem 1.6rem;
+    background: rgba(255, 255, 255, 0.07);
+    border-bottom: 0.25rem solid var(--accent);
+  }
+  .clock {
+    font-size: 2.4rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 4.4ch;
+    text-align: center;
+  }
+  .period { font-size: 1rem; letter-spacing: 0.1em; opacity: 0.8; }
+
+  /* a value that isn't read yet is dim */
+  [data-empty="true"] { opacity: 0.45; }
+  /* a changed score pops (client.js adds .ss-changed for a second) */
+  .score.ss-changed { animation: pop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @keyframes pop {
+    0% { transform: scale(1.4); color: var(--accent); }
+    60% { color: var(--accent); }
+    100% { transform: scale(1); }
+  }
+
+  /* the banner shown by the script below when a team scores */
+  .banner {
+    position: absolute;
+    top: 9.6rem;
+    left: 50%;
+    padding: 0.45rem 1.6rem;
+    border-radius: 0.4rem;
+    background: var(--accent);
+    color: #111;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translate(-50%, -0.8rem);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .banner.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+  <div class="board">
+    <div class="team home">
+      <div class="who">
+        <span class="name">HOME</span>
+        <span class="fouls">FOULS <span data-field="Home Fouls">0</span></span>
+      </div>
+      <span class="score" data-field="Home Score">0</span>
+    </div>
+    <div class="middle">
+      <span class="clock" data-field="Time">0:00</span>
+      <span class="period">PERIOD <span data-field="Period">1</span></span>
+    </div>
+    <div class="team away">
+      <div class="who">
+        <span class="name">AWAY</span>
+        <span class="fouls">FOULS <span data-field="Away Fouls">0</span></span>
+      </div>
+      <span class="score" data-field="Away Score">0</span>
+    </div>
+  </div>
+  <div class="banner" id="banner"></div>
+
+  <script src="/overlay/client.js"></script>
+  <script>
+    // Custom logic: a banner when a score goes up ("+3 HOME").
+    var teams = { "Home Score": "HOME", "Away Score": "AWAY" };
+    var bannerTimer = null;
+    ScoreSight.on("change", function (change) {
+      // change: {field, value, previous, state, good, initial, removed}
+      if (change.initial || change.removed || !teams[change.field]) {
+        return;
+      }
+      var points = Number(change.value) - Number(change.previous);
+      if (!(points > 0 && points <= 6)) {
+        return; // a correction or a misread, not a score
+      }
+      var banner = document.getElementById("banner");
+      banner.textContent = "+" + points + " " + teams[change.field];
+      banner.className = "banner show";
+      clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(function () {
+        banner.className = "banner";
+      }, 3000);
+    });
+  </script>
+</body>
+</html>

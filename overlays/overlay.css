@@ -1,0 +1,380 @@
+/* ScoreSight built-in overlays (/overlay/scorebug, /lower-third, /clock,
+   /field). Sizes are in rem: 1rem is 16px on a 1920x1080 page (times
+   --scale), and with "fit=width" (the default) it follows the page width, so
+   the same overlay fits 1280x720 and 3840x2160. Written for old embedded
+   browsers too (CasparCG 2.3's Chromium 71): no inset, gap, clamp() or
+   color-mix(). */
+
+:root {
+  --scale: 1;
+  --font: "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Liberation Sans", sans-serif;
+  --bg: rgba(11, 18, 32, 0.92);
+  --fg: #ffffff;
+  --accent: #ffb400;
+  --home: #e63946;
+  --away: #2a9df4;
+  --shade: rgba(255, 255, 255, 0.08);
+  --shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.35);
+  --text-shadow: none;
+  --radius: 0.4rem;
+}
+
+html {
+  font-size: calc(var(--scale) * 16px);
+}
+html.ss-fit-width {
+  /* 1920px / 120 = 16px */
+  font-size: calc(var(--scale) * 100vw / 120);
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+body {
+  font-family: var(--font);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- themes ------------------------------------------------------------- */
+
+.ss-theme-light {
+  --bg: rgba(255, 255, 255, 0.95);
+  --fg: #0f172a;
+  --accent: #0b5cff;
+  --shade: rgba(15, 23, 42, 0.06);
+  --shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.25);
+}
+.ss-theme-minimal {
+  --bg: transparent;
+  --fg: #ffffff;
+  --shade: transparent;
+  --shadow: none;
+  --text-shadow: 0 0 0.12em rgba(0, 0, 0, 0.9), 0 0.06em 0.25em rgba(0, 0, 0, 0.8);
+}
+.ss-theme-bold {
+  --bg: rgba(200, 16, 46, 0.95);
+  --fg: #ffffff;
+  --accent: #ffd23f;
+  --shade: rgba(0, 0, 0, 0.22);
+  --home: #ffffff;
+  --away: #ffd23f;
+}
+
+/* --- the frame: a safe-area margin (5%) and the overlay's position -------- */
+
+.ss-frame {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 3.375rem 6rem;
+  display: flex;
+  flex-direction: column;
+}
+.ss-pos-top-left .ss-frame,
+.ss-pos-top .ss-frame,
+.ss-pos-top-right .ss-frame {
+  justify-content: flex-start;
+}
+.ss-pos-left .ss-frame,
+.ss-pos-center .ss-frame,
+.ss-pos-right .ss-frame {
+  justify-content: center;
+}
+.ss-pos-bottom-left .ss-frame,
+.ss-pos-bottom .ss-frame,
+.ss-pos-bottom-right .ss-frame {
+  justify-content: flex-end;
+}
+.ss-pos-top-left .ss-frame,
+.ss-pos-left .ss-frame,
+.ss-pos-bottom-left .ss-frame {
+  align-items: flex-start;
+}
+.ss-pos-top .ss-frame,
+.ss-pos-center .ss-frame,
+.ss-pos-bottom .ss-frame {
+  align-items: center;
+}
+.ss-pos-top-right .ss-frame,
+.ss-pos-right .ss-frame,
+.ss-pos-bottom-right .ss-frame {
+  align-items: flex-end;
+}
+
+/* --- shared parts ------------------------------------------------------- */
+
+.ss-panel {
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-shadow: var(--text-shadow);
+  overflow: hidden;
+}
+.ss-value {
+  display: inline-block;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ss-caption {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.ss-label {
+  white-space: nowrap;
+}
+
+/* --- scorebug ----------------------------------------------------------- */
+
+.ss-bug {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 0.25rem solid var(--accent);
+}
+.ss-team {
+  display: flex;
+  align-items: stretch;
+}
+.ss-team-name {
+  display: flex;
+  align-items: center;
+  padding: 0 1.1rem 0 0.9rem;
+  border-left: 0.45rem solid var(--home);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ss-away .ss-team-name {
+  border-left-color: var(--away);
+}
+.ss-score-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.2rem;
+  padding: 0.35rem 0.8rem;
+  background: var(--shade);
+}
+.ss-score {
+  font-size: 2.4rem;
+  line-height: 1.1;
+}
+.ss-clock-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 1.3rem;
+}
+.ss-clock-cell .ss-clock {
+  font-size: 2.2rem;
+  line-height: 1.1;
+  min-width: 4.4ch;
+  text-align: center;
+}
+.ss-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 1rem;
+  border-left: 1px solid rgba(127, 127, 127, 0.35);
+}
+.ss-info .ss-value {
+  font-size: 1.4rem;
+  line-height: 1.15;
+}
+
+/* "layout=stack": the teams on two rows, the clock and the rest beside them */
+.ss-layout-stack {
+  display: flex;
+}
+.ss-layout-stack .ss-teams {
+  display: flex;
+  flex-direction: column;
+}
+.ss-layout-stack .ss-team {
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
+.ss-layout-stack .ss-team + .ss-team {
+  border-top: 1px solid rgba(127, 127, 127, 0.3);
+}
+.ss-layout-stack .ss-team-name {
+  min-width: 9rem;
+}
+.ss-layout-stack .ss-score {
+  font-size: 2rem;
+}
+.ss-layout-stack .ss-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 1px solid rgba(127, 127, 127, 0.35);
+}
+.ss-layout-stack .ss-side .ss-info {
+  border-left: 0;
+  flex-direction: row;
+  padding: 0.15rem 1rem 0.4rem;
+}
+.ss-layout-stack .ss-side .ss-info .ss-caption {
+  display: inline-block;
+  margin-right: 0.5em;
+}
+.ss-layout-row .ss-teams,
+.ss-layout-row .ss-side {
+  display: flex;
+}
+
+/* --- lower third -------------------------------------------------------- */
+
+.ss-l3 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+.ss-l3-title {
+  margin-bottom: 0.35rem;
+  padding: 0.3rem 1rem;
+  border-left: 0.35rem solid var(--accent);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ss-l3-bar {
+  display: flex;
+  align-items: stretch;
+  border-left: 0.35rem solid var(--accent);
+}
+.ss-pair {
+  display: flex;
+  align-items: baseline;
+  padding: 0.55rem 1.4rem;
+}
+.ss-pair + .ss-pair {
+  border-left: 1px solid rgba(127, 127, 127, 0.35);
+}
+.ss-pair .ss-caption {
+  display: inline-block;
+  margin-right: 0.6em;
+  font-size: 1.1rem;
+}
+.ss-pair .ss-value {
+  font-size: 2.2rem;
+  line-height: 1.1;
+}
+.ss-l3-sub {
+  margin-top: 0.35rem;
+  padding: 0.25rem 1rem;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+/* --- clock -------------------------------------------------------------- */
+
+.ss-clockbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 1.8rem 0.7rem;
+  border-bottom: 0.25rem solid var(--accent);
+}
+.ss-clockbox .ss-clock {
+  font-size: 4.5rem;
+  line-height: 1.05;
+  min-width: 4.4ch;
+  text-align: center;
+}
+.ss-clock-info {
+  display: flex;
+}
+.ss-clock-info .ss-pair {
+  padding: 0.1rem 0.8rem 0;
+}
+.ss-clock-info .ss-pair .ss-value {
+  font-size: 1.5rem;
+}
+.ss-clock-info .ss-pair .ss-caption {
+  font-size: 0.9rem;
+}
+
+/* --- single field -------------------------------------------------------- */
+
+.ss-single {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 1.6rem;
+}
+.ss-single .ss-value {
+  font-size: 4rem;
+  line-height: 1.1;
+}
+.ss-theme-minimal .ss-single {
+  padding: 0;
+}
+
+/* --- value-change animations ("animate=") --------------------------------- */
+
+[data-animate="pop"] .ss-changed {
+  animation: ss-pop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+[data-animate="fade"] .ss-changed {
+  animation: ss-fade 0.5s ease-out;
+}
+[data-animate="slide"] .ss-changed {
+  animation: ss-slide 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* a running clock changes every second: it doesn't animate */
+.ss-ticking.ss-changed {
+  animation: none;
+}
+@keyframes ss-pop {
+  0% {
+    transform: scale(1.35);
+    color: var(--flash, var(--accent));
+  }
+  55% {
+    color: var(--flash, var(--accent));
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes ss-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ss-slide {
+  from {
+    transform: translateY(-0.6em);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

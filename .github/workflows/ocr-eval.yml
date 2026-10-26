@@ -1,0 +1,293 @@
+# Measure ScoreSight's OCR (the Tesseract pipeline in src/tesseract.py, with
+# every bundled model, and the app's PP-OCR engine, src/ppocr_engine.py) and
+# the recommended PP-OCR recognizers on the committed datasets of real and
+# synthetic scoreboard crops, and fail if exact-match accuracy drops by more
+# than 2 points against the committed baselines. Runs on pull requests and
+# pushes to main that can change recognition, and manually. See
+# docs/development/ocr-eval.md.
+name: OCR eval
+
+on:
+  pull_request:
+    paths:
+      - src/tesseract.py
+      - src/ppocr_engine.py
+      - src/defaults.py
+      - src/text_detection_target.py
+      - tesseract/**
+      - scripts/fetch_models.py
+      - ocr_eval/**
+      - requirements.txt
+      - requirements-eval.txt
+      - .github/workflows/ocr-eval.yml
+  push:
+    branches: [main]
+    paths:
+      - src/tesseract.py
+      - src/ppocr_engine.py
+      - src/defaults.py
+      - src/text_detection_target.py
+      - tesseract/**
+      - scripts/fetch_models.py
+      - ocr_eval/**
+      - requirements.txt
+      - requirements-eval.txt
+      - .github/workflows/ocr-eval.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ocr-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  tesseract:
+    name: Tesseract vs. baseline
+    # the baseline (ocr_eval/baselines/tesseract.json) was made on Linux with
+    # requirements.txt's tesserocr wheel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Show versions
+        run: python -c "import tesserocr; print('Tesseract', tesserocr.tesseract_version().splitlines()[0])"
+
+      - name: Validate the datasets
+        run: >-
+          python -m ocr_eval validate --strict-licenses
+          textocr_scoreboards synthetic_7seg commons_scoreboards
+
+      - name: Run the Tesseract pipeline on the datasets
+        env:
+          LABEL: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python -m ocr_eval run
+          --dataset textocr_scoreboards --dataset synthetic_7seg
+          --dataset commons_scoreboards
+          --engine tesseract --label "$LABEL" --quiet --out ocr-eval-results
+
+      - name: Compare with the baseline
+        run: >-
+          python -m ocr_eval compare
+          ocr_eval/baselines/tesseract.json ocr-eval-results/results.json
+          --max-drop 0.02 --require-all --markdown ocr-eval-results/comparison.md
+
+      # commons_scoreboards has its own baseline file, so that its labels can
+      # be corrected (python -m ocr_eval review) without touching tesseract.json
+      - name: Compare with the commons_scoreboards baseline
+        if: success() || failure()
+        run: >-
+          python -m ocr_eval compare
+          ocr_eval/baselines/tesseract-commons.json ocr-eval-results/results.json
+          --max-drop 0.02 --require-all
+          --markdown ocr-eval-results/comparison-commons.md
+
+      - name: Write the job summary
+        if: always()
+        run: |
+          for file in ocr-eval-results/comparison.md ocr-eval-results/comparison-commons.md ocr-eval-results/report.md; do
+            if [ -f "$file" ]; then
+              cat "$file" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ocr-eval-results
+          path: ocr-eval-results/
+          if-no-files-found: ignore
+
+  ppocr:
+    name: PP-OCR vs. baseline
+    # PaddleOCR's PP-OCRv6 recognizers (ocr_eval/engines/ppocr.py, on
+    # onnxruntime), the engines the evaluation recommends. The baseline
+    # (ocr_eval/baselines/ppocr-ci.json) was made on Linux with the pinned
+    # onnxruntime. The models come from the Hugging Face Hub at revisions
+    # pinned in ppocr.py, and are cached. Downloading fails the job, except
+    # that on a pull request a network outage that outlasts the retries skips
+    # the comparison with a warning (python -m ocr_eval.fetch_models exits
+    # with 75); a missing revision or file, a renamed or gated repository or
+    # an import error always fails.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      VARIANTS: v6-small-wl,v6-tiny-wl
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m ocr_eval requirements ppocr > ppocr-requirements.txt
+          python -m pip install -r ppocr-requirements.txt
+
+      # the cache key changes only when a pinned revision does
+      - name: List the pinned model files
+        run: python -m ocr_eval.fetch_models --pins "ppocr:$VARIANTS" | tee ppocr-pins.txt
+
+      - name: Cache the PP-OCR models
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/huggingface/hub
+          key: ppocr-models-${{ hashFiles('ppocr-pins.txt') }}
+          restore-keys: ppocr-models-
+
+      - name: Download the PP-OCR models
+        id: models
+        env:
+          # a skip is a failure on pushes to main and manual runs
+          SKIP_ALLOWED: ${{ github.event_name == 'pull_request' }}
+        run: |
+          status=0
+          python -m ocr_eval.fetch_models "ppocr:$VARIANTS" || status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [ "$status" -eq 75 ] && [ "$SKIP_ALLOWED" = "true" ]; then
+            echo "::warning title=PP-OCR models unavailable::The Hugging Face Hub couldn't be reached after several attempts; the PP-OCR comparison is skipped."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          elif [ "$status" -eq 75 ]; then
+            echo "::error title=PP-OCR models unavailable::The Hugging Face Hub couldn't be reached after several attempts."
+            exit 1
+          else
+            echo "::error title=PP-OCR models unavailable::The pinned PP-OCR models couldn't be downloaded (see the log)."
+            exit "$status"
+          fi
+
+      - name: Run PP-OCR on the datasets
+        if: steps.models.outputs.available == 'true'
+        env:
+          HF_HUB_OFFLINE: "1"
+          LABEL: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python -m ocr_eval run
+          --dataset textocr_scoreboards --dataset commons_scoreboards
+          --dataset synthetic_7seg
+          --engine "ppocr:$VARIANTS" --label "$LABEL" --quiet --out ocr-eval-ppocr
+
+      - name: Compare with the baseline
+        if: steps.models.outputs.available == 'true'
+        run: >-
+          python -m ocr_eval compare
+          ocr_eval/baselines/ppocr-ci.json ocr-eval-ppocr/results.json
+          --max-drop 0.02 --require-all --markdown ocr-eval-ppocr/comparison.md
+
+      - name: Write the job summary
+        if: always()
+        env:
+          AVAILABLE: ${{ steps.models.outputs.available }}
+        run: |
+          if [ "$AVAILABLE" != "true" ]; then
+            echo "PP-OCR comparison skipped: the Hugging Face Hub couldn't be reached." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          for file in ocr-eval-ppocr/comparison.md ocr-eval-ppocr/report.md; do
+            if [ -f "$file" ]; then
+              cat "$file" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ocr-eval-ppocr
+          path: ocr-eval-ppocr/
+          if-no-files-found: ignore
+
+  ppocr-app:
+    name: PP-OCR in the app vs. baseline
+    # The app's own PP-OCR engine (src/ppocr_engine.py) through its pipeline
+    # (src/tesseract.py), with the models scripts/fetch_models.py downloads:
+    # ocr_eval/engines/ppocr_scoresight.py. Its baseline
+    # (ocr_eval/baselines/ppocr-app-ci.json, made on Linux) has the same
+    # predictions as ppocr-ci.json's v6-small-wl and v6-tiny-wl on every crop
+    # (tests/test_ocr_eval_ppocr_scoresight.py checks that), so this gates
+    # the app on the evaluation's numbers. The models are cached; the fetch
+    # verifies them and fails after its retries.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        # requirements-dev.txt: requirements.txt and the fetch script's PyYAML
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Cache the PP-OCR models
+        uses: actions/cache@v6
+        with:
+          path: |
+            ocr_models/ppocr/PP-OCRv6_small_rec
+            ocr_models/ppocr/PP-OCRv6_tiny_rec
+          key: ppocr-models-${{ hashFiles('scripts/fetch_models.py') }}
+
+      - name: Fetch the PP-OCR models
+        run: python scripts/fetch_models.py
+
+      - name: Run the app's PP-OCR engine on the datasets
+        env:
+          QT_QPA_PLATFORM: offscreen
+          LABEL: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python -m ocr_eval run
+          --dataset textocr_scoreboards --dataset commons_scoreboards
+          --dataset synthetic_7seg
+          --engine ppocr-app --label "$LABEL" --quiet --out ocr-eval-ppocr-app
+
+      - name: Compare with the baseline
+        run: >-
+          python -m ocr_eval compare
+          ocr_eval/baselines/ppocr-app-ci.json ocr-eval-ppocr-app/results.json
+          --max-drop 0.02 --require-all --markdown ocr-eval-ppocr-app/comparison.md
+
+      - name: Write the job summary
+        if: always()
+        run: |
+          for file in ocr-eval-ppocr-app/comparison.md ocr-eval-ppocr-app/report.md; do
+            if [ -f "$file" ]; then
+              cat "$file" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ocr-eval-ppocr-app
+          path: ocr-eval-ppocr-app/
+          if-no-files-found: ignore
