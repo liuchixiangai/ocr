@@ -85,8 +85,10 @@ Publishing a portable zip must move **both** to the same newer string.
 If they stay equal, installed copies will not offer an update (the check
 is doing what it should; the release was not published to the channel).
 
-The flip/FPS portable already on the download site is `2026.10.26.1`.
-The next zip (the one that includes newer code) needs a newer string;
+Picture flip and the 25 fps default shipped as portable `2026.10.26.1`.
+The hardened auto-updater (retries, a required SHA-256, background
+download with resume, a safer apply script, and the Chinese 检查更新
+label) ships as `2026.10.26.2`. The next zip needs a newer string;
 `bump_gw_release.py` rejects the same version.
 
 ```bash
