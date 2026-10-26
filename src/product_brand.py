@@ -23,8 +23,10 @@ LICENSE_NAME = "MIT"
 SIMPLIFY_OUTPUT_UI = True
 
 # GuangWei channel version for ocr.4018.cn auto-update (independent of
-# upstream ScoreSight __version__). Bump this when publishing a new portable.
-GW_RELEASE = "2026.10.25.1"
+# upstream ScoreSight __version__). A portable publish must bump this AND
+# ocr.4018.cn/version.json to the same newer string (scripts/bump_gw_release.py).
+# If they stay equal, installed copies will not offer an update.
+GW_RELEASE = "2026.10.26.1"
 
 # Download site (auto-update + "open download page").
 GW_DOWNLOAD_SITE = "https://ocr.4018.cn"

@@ -21,7 +21,7 @@
 
 光为 OCR（GuangWei OCR）是给体育直播用的 Windows 记分牌识别程序。摄像头或采集卡对准现场记分牌，软件读出比分、时间和节次，把结果写到桌面 `光为OCR输出\results.json`，供 vMix、芯象等导播软件绑定。
 
-面向终端用户的发行形态是 **Windows 11 x64 免安装包**（可放在 U 盘里带走）。下载页：**<https://ocr.4018.cn/>**。当前下载文件是 `GuangWeiOCR-Portable.zip`（通道版本见 `src/product_brand.py` 的 `GW_RELEASE`，目前 `2026.10.25.1`）。解压到英文路径后运行 `启动光为OCR.bat` 或 `GuangWeiOCR.exe`。
+面向终端用户的发行形态是 **Windows 11 x64 免安装包**（可放在 U 盘里带走）。下载页：**<https://ocr.4018.cn/>**。当前下载文件是 `GuangWeiOCR-Portable.zip`（通道版本见 `src/product_brand.py` 的 `GW_RELEASE`，目前 `2026.10.26.1`）。解压到英文路径后运行 `启动光为OCR.bat` 或 `GuangWeiOCR.exe`。
 
 **对终端用户永久免费**，没有账号、没有水印、没有付费档。本仓库源码以 [MIT](LICENSE) 发布。
 
@@ -81,6 +81,13 @@ python src\main.py
 更细的上游构建说明仍在 [docs/development/building.md](docs/development/building.md)。把里面的 clone 地址换成 `https://github.com/liuchixiangai/ocr.git`。
 
 ## 发行与签名
+
+发 Windows 便携包时，自动更新看的是 `src/product_brand.py` 里的 `GW_RELEASE`，不是 `src/version.py`。必须两处一起改成**比现在更新**的同一个字符串，否则已经装好的用户启动时不会提示更新：
+
+1. `python scripts/bump_gw_release.py 2026.10.26.1`（比当前 `GW_RELEASE` 新；`--dry-run` 只预览）
+2. 上传 `GuangWeiOCR-Portable.zip` 后，把 <https://ocr.4018.cn/version.json> 的 `version` 改成同一个字符串，并写上 `zip_url` 和该 zip 的 SHA-256
+
+说明见 [docs/gw-portable-release.md](docs/gw-portable-release.md)。`scripts/bump_version.py` 只改上游 ScoreSight 的版本号，结束时会提醒这一步，但不会改 `GW_RELEASE`。
 
 - 用户下载：<https://ocr.4018.cn/>
 - 计划中的 CI：`.github/workflows/windows-portable.yml`（`windows-latest`，仅 `workflow_dispatch`）。模型不全时它只说明缺什么，**不运行 PyInstaller，也不签名**。

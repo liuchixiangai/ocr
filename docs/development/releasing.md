@@ -74,6 +74,32 @@ If something is wrong, delete the draft and the tag, fix `main`, and tag again.
 
 The README and the [installation guide](../INSTALL.md) refer to these names. If they change, update both, and `src/app_update.py` (`INSTALLER_NAME`, `SUMS_NAME`): **Update now** finds the Windows installer and its checksum in the release by these names, so a release without them can only be downloaded by hand. Update now runs the new version's installer, so its `[Code]` (the update handshake) must keep working; `scripts/ci/update_test.py` tests it in every Windows build.
 
+## 光为 OCR portable channel
+
+End users install the Windows zip from <https://ocr.4018.cn/>, not the
+ScoreSight GitHub release. That copy compares `GW_RELEASE` in
+`src/product_brand.py` with `version.json` on the download site. It does
+not compare `src/version.py`.
+
+Publishing a portable zip must move **both** to the same newer string.
+If they stay equal, installed copies will not offer an update (the check
+is doing what it should; the release was not published to the channel).
+
+The flip/FPS portable already on the download site is `2026.10.26.1`.
+The next zip (the one that includes newer code) needs a newer string;
+`bump_gw_release.py` rejects the same version.
+
+```bash
+python scripts/bump_gw_release.py <newer-than-GW_RELEASE> --dry-run
+python scripts/bump_gw_release.py <newer-than-GW_RELEASE>
+```
+
+Then upload `GuangWeiOCR-Portable.zip` and publish `version.json` with that
+`version`, the `zip_url`, and the zip's SHA-256. Details:
+[gw-portable-release.md](../gw-portable-release.md). `scripts/bump_version.py`
+only changes the ScoreSight version and prints this reminder; it does not
+edit `GW_RELEASE`.
+
 ## Signing
 
 - **macOS**: signing and notarization run only for release builds, and only when the repository secrets exist: `APPLE_CERTIFICATE` (a base64-encoded Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD` and `APPLE_APP_DEVELOPER_ID` (the signing identity) for signing, plus `APPLE_DEVELOPER_ID_USER`, `APPLE_DEVELOPER_ID_PASSWORD` (an app-specific password) and `APPLE_DEVELOPER_ID_TEAM` for notarization. Pull request and manual test builds are unsigned.

@@ -183,6 +183,14 @@ def patched(monkeypatch):
     monkeypatch.setattr(mainwindow, "get_http_server_port", fake_get_http_server_port)
     monkeypatch.setattr(mainwindow, "get_camera_info", fake_get_camera_info)
     monkeypatch.setattr(mainwindow, "check_for_updates", lambda *a, **k: False)
+
+    def fake_gw_check():
+        from gw_auto_update import GwUpdateResult
+        from product_brand import GW_RELEASE
+
+        return GwUpdateResult(current=GW_RELEASE, latest=GW_RELEASE)
+
+    monkeypatch.setattr(mainwindow, "check_gw_update", fake_gw_check)
     monkeypatch.setattr(mainwindow, "ImageViewer", FakeViewer)
     monkeypatch.setattr(
         mainwindow,
@@ -3409,6 +3417,9 @@ def test_startup_update_check_shows_an_available_update(
 ):
     import mainwindow
 
+    # This case is the upstream GitHub dialog. The 光为 channel is covered
+    # separately and must not be turned back onto GitHub here.
+    monkeypatch.setattr(mainwindow, "is_guangwei_channel", lambda: False)
     threads = []
 
     def fake_check():
@@ -3427,8 +3438,10 @@ def test_startup_update_check_respects_the_setting(make_window, monkeypatch):
     # pytest.fail() in the (background) check only killed that thread with a
     # warning, so this passed even when the setting was ignored. The check is
     # started (or not) synchronously by the constructor.
+    # Upstream only: the 光为 channel ignores this flag on purpose.
     import mainwindow
 
+    monkeypatch.setattr(mainwindow, "is_guangwei_channel", lambda: False)
     calls = []
     monkeypatch.setattr(
         mainwindow,
@@ -3454,6 +3467,7 @@ def test_startup_update_check_respects_the_setting(make_window, monkeypatch):
 def test_manual_update_check_always_shows_the_result(make_window, monkeypatch, qtbot):
     import mainwindow
 
+    monkeypatch.setattr(mainwindow, "is_guangwei_channel", lambda: False)
     monkeypatch.setattr(
         mainwindow, "check_for_updates", lambda: UpdateCheckResult("0.2.0", "0.2.0")
     )
@@ -3472,6 +3486,7 @@ def test_a_manual_check_during_the_startup_check_shows_its_result(
     # nothing, and the startup check shows no dialog when there is no update.
     import mainwindow
 
+    monkeypatch.setattr(mainwindow, "is_guangwei_channel", lambda: False)
     release = threading.Event()
     calls = []
 
@@ -3490,6 +3505,145 @@ def test_a_manual_check_during_the_startup_check_shows_its_result(
     assert not window.update_dialog.ui.label_noNewVersion.isHidden()
     window.update_dialog.close()
     assert not window.update_check_manual_pending
+
+
+def _gw_result(**kwargs):
+    from gw_auto_update import GwUpdateResult
+
+    info = kwargs.pop("info", None)
+    return GwUpdateResult(current="2026.10.25.1", info=info, **kwargs)
+
+
+def test_guangwei_startup_check_ignores_the_disable_flag(
+    make_window, monkeypatch, qtbot
+):
+    """光为 channel checks ocr.4018.cn even when startup checks are disabled."""
+    import mainwindow
+
+    calls = []
+    upstream = []
+
+    def fake():
+        calls.append(threading.current_thread())
+        return _gw_result(latest="2026.10.25.1")
+
+    monkeypatch.setattr(mainwindow, "check_gw_update", fake)
+    monkeypatch.setattr(
+        mainwindow, "check_for_updates", lambda: upstream.append(1) or None
+    )
+    store_data("scoresight.json", "disable_update_checks", True)
+    window = make_window()
+    qtbot.waitUntil(lambda: calls and not window.update_check_running)
+    assert calls[0] is not threading.main_thread()
+    assert upstream == []
+    assert window.update_dialog is None
+
+
+def test_guangwei_manual_check_reports_up_to_date(make_window, monkeypatch, qtbot):
+    import mainwindow
+
+    monkeypatch.setattr(
+        mainwindow,
+        "check_gw_update",
+        lambda: _gw_result(latest="2026.10.25.1"),
+    )
+    shown = []
+    monkeypatch.setattr(
+        mainwindow,
+        "show_up_to_date_dialog",
+        lambda parent, version: shown.append(version),
+    )
+    window = make_window()
+    qtbot.waitUntil(lambda: not window.update_check_running)
+    assert shown == []
+    window.checkForUpdates(True)
+    qtbot.waitUntil(lambda: shown == ["2026.10.25.1"])
+    assert window.update_dialog is None
+
+
+def test_guangwei_manual_check_reports_network_failure(make_window, monkeypatch, qtbot):
+    import mainwindow
+
+    monkeypatch.setattr(
+        mainwindow,
+        "check_gw_update",
+        lambda: _gw_result(error="network", error_detail="timed out"),
+    )
+    failed = []
+    monkeypatch.setattr(
+        mainwindow,
+        "show_check_failed_dialog",
+        lambda parent: failed.append(parent) or False,
+    )
+    window = make_window()
+    qtbot.waitUntil(lambda: not window.update_check_running)
+    assert failed == []
+    assert window.ui.statusbar.currentMessage() == ""
+    window.checkForUpdates(True)
+    qtbot.waitUntil(lambda: bool(failed))
+    assert "更新检查失败" in window.ui.statusbar.currentMessage()
+
+
+def test_guangwei_startup_failure_stays_quiet(make_window, monkeypatch, qtbot):
+    import mainwindow
+
+    monkeypatch.setattr(
+        mainwindow,
+        "check_gw_update",
+        lambda: _gw_result(error="network", error_detail="timed out"),
+    )
+    failed = []
+    monkeypatch.setattr(
+        mainwindow, "show_check_failed_dialog", lambda parent: failed.append(1) or False
+    )
+    window = make_window()
+    qtbot.waitUntil(lambda: not window.update_check_running)
+    qtbot.wait(20)
+    assert failed == []
+
+
+def test_guangwei_available_update_uses_the_channel_dialog(
+    make_window, monkeypatch, qtbot
+):
+    import mainwindow
+    from gw_auto_update import GwReleaseInfo
+
+    info = GwReleaseInfo(
+        version="2026.10.26.1",
+        zip_url="https://ocr.4018.cn/GuangWeiOCR-Portable.zip",
+        sha256="ab" * 32,
+        notes="",
+        released_at="",
+    )
+    monkeypatch.setattr(
+        mainwindow,
+        "check_gw_update",
+        lambda: _gw_result(latest="2026.10.26.1", update_available=True, info=info),
+    )
+    upstream = []
+    shown = []
+    monkeypatch.setattr(
+        mainwindow, "check_for_updates", lambda: upstream.append(1) or None
+    )
+    monkeypatch.setattr(
+        mainwindow,
+        "show_gw_update_dialog",
+        lambda parent, result: shown.append(result.latest) or True,
+    )
+    window = make_window()
+    qtbot.waitUntil(lambda: shown == ["2026.10.26.1"])
+    assert upstream == []
+    assert window.update_dialog is None
+
+
+def test_chinese_locale_menu_says_check_for_updates(main_window):
+    from resource_path import resource_path
+
+    translator = main_window.translator
+    assert translator.load(str(resource_path("translations", "scoresight_zh_CN.qm")))
+    main_window.applyRuntimeTexts()
+    assert main_window.ui.actionCheckForUpdates.text() == "检查更新"
+    assert "新版本" in main_window.ui.actionCheckForUpdates.statusTip()
 
 
 def test_confidence_threshold_slider(main_window, make_target):

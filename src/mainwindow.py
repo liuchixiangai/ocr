@@ -195,16 +195,24 @@ from update_check import (
 
 try:
     from gw_auto_update import (
+        STATUS_CHECK_FAILED,
         check_gw_update,
+        describe_check,
         is_guangwei_channel,
+        show_check_failed_dialog,
+        show_up_to_date_dialog,
         show_update_dialog as show_gw_update_dialog,
     )
 except Exception:  # pragma: no cover
+    STATUS_CHECK_FAILED = "更新检查失败"
+    check_gw_update = None  # type: ignore
+    describe_check = None  # type: ignore
+    show_check_failed_dialog = None  # type: ignore
+    show_up_to_date_dialog = None  # type: ignore
 
     def is_guangwei_channel():
         return False
 
-    check_gw_update = None  # type: ignore
     show_gw_update_dialog = None  # type: ignore
 from log_view import LogViewerDialog
 import file_output
@@ -1333,6 +1341,7 @@ class MainWindow(QMainWindow):
         self.refreshLiveStatus()
         self.updateAdjustHintVisibility()
         self.applyOcrModelTexts()
+        self.applyGuangweiHelpMenu()
         self.updateFieldsHint()
         self.updateFieldActions()
         self.updateFieldToolTips()
@@ -1370,6 +1379,17 @@ class MainWindow(QMainWindow):
         )
         if area.minimumWidth() != width:
             area.setMinimumWidth(width)
+
+    def applyGuangweiHelpMenu(self):
+        """光为 channel, Chinese UI: Help shows 检查更新 even if a .qm is stale."""
+        if not is_guangwei_channel():
+            return
+        locale = str(self.currentLocale() or "").lower()
+        if not locale.startswith("zh"):
+            return
+        action = self.ui.actionCheckForUpdates
+        action.setText("检查更新")
+        action.setStatusTip("检查光为 OCR 是否有新版本")
 
     def retranslateMenus(self):
         names = {
@@ -2473,9 +2493,11 @@ class MainWindow(QMainWindow):
     def checkForUpdates(self, manual: bool):
         """Check for updates on a background thread.
 
-        GuangWei channel (SIMPLIFY_OUTPUT_UI): query ocr.4018.cn/version.json every
-        startup (silent on 404). Upstream ScoreSight GitHub updater is used only
-        when not on the GuangWei channel.
+        GuangWei channel (SIMPLIFY_OUTPUT_UI): query ocr.4018.cn/version.json on
+        every startup (mirrors and retries; the disable flag does not skip it).
+        A manual check reports 已是最新 / 有新版 / 更新检查失败. Startup stays
+        quiet when the check cannot reach the site. Upstream ScoreSight's GitHub
+        updater runs only when not on the GuangWei channel.
         """
         if self.update_check_running:
             self.update_check_manual_pending |= manual
@@ -2503,28 +2525,14 @@ class MainWindow(QMainWindow):
         self.update_check_running = False
         manual = manual or self.update_check_manual_pending
         self.update_check_manual_pending = False
-        # GuangWei channel result
+        # GuangWei channel result. A check that raised is None (not a gw tuple).
+        if result is None and is_guangwei_channel():
+            logger.warning("GW update check failed")
+            if manual:
+                self._showGwCheckFailed()
+            return
         if isinstance(result, tuple) and len(result) == 2 and result[0] == "gw":
-            gw = result[1]
-            if gw is None:
-                return
-            if not (manual or getattr(gw, "update_available", False)):
-                # manual with no update: brief Chinese tip
-                if manual:
-                    try:
-                        from PySide6.QtWidgets import QMessageBox
-                        from product_brand import GW_RELEASE
-
-                        QMessageBox.information(
-                            self,
-                            "光为 OCR",
-                            f"当前已是最新版本（{GW_RELEASE}）。",
-                        )
-                    except Exception:
-                        pass
-                return
-            if show_gw_update_dialog is not None:
-                show_gw_update_dialog(self, gw)
+            self._finishGwUpdateCheck(result[1], manual)
             return
         # Upstream ScoreSight path
         if isinstance(result, tuple) and len(result) == 2 and result[0] == "upstream":
@@ -2543,6 +2551,30 @@ class MainWindow(QMainWindow):
             self,
             self.appUpdater.start if self.appUpdater.available() else None,
         )
+
+    def _showGwCheckFailed(self):
+        """Manual check only: status-bar line plus a dialog. Startup stays quiet."""
+        try:
+            self.ui.statusbar.showMessage(STATUS_CHECK_FAILED, 8000)
+        except Exception:
+            logger.debug("could not show update-check status", exc_info=True)
+        if show_check_failed_dialog is not None:
+            show_check_failed_dialog(self)
+
+    def _finishGwUpdateCheck(self, gw, manual: bool):
+        if gw is None or describe_check is None or describe_check(gw) == "failed":
+            detail = getattr(gw, "error_detail", None) if gw is not None else None
+            if detail:
+                logger.info("GW update check error: %s", detail)
+            if manual:
+                self._showGwCheckFailed()
+            return
+        outcome = describe_check(gw)
+        if outcome == "available" and show_gw_update_dialog is not None:
+            show_gw_update_dialog(self, gw)
+            return
+        if outcome == "current" and manual and show_up_to_date_dialog is not None:
+            show_up_to_date_dialog(self, gw.current)
 
     def createAboutDialog(self) -> QDialog:
         about_dialog = QDialog(self)
