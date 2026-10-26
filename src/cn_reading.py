@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import re
 
-from sports import CLOCK, PERIOD, role_of
+from defaults import SHOT_CLOCK_FORMAT
+from sports import CLOCK, PERIOD, SHOT_CLOCK, role_of
 
 # 一..十 for quarter / period labels (basketball rarely past 4 + OT)
 _CN_DIGITS = {
@@ -139,16 +140,101 @@ def strip_leading_zeros(text: str) -> str:
     return text.lstrip("0") or "0"
 
 
+# OCR often draws the tenth's dot as a comma, a middle dot, or (shot clock) a colon.
+_TENTH_DOTS = str.maketrans(
+    {
+        ",": ".",
+        "，": ".",
+        "、": ".",
+        "·": ".",
+        "•": ".",
+        "・": ".",
+        "｡": ".",
+        "．": ".",
+        "：": ":",
+        "；": ":",
+        ";": ":",
+    }
+)
+
+
+def _repair_game_clock_tenths(text: str) -> str:
+    """Turn last-seconds OCR variants into mm:ss.d or s.d.
+
+    Keeps a real minute:second (`12:34`, `1:02:03`) and a two-digit `12.34`
+    (the colon may have been missed). Extra fractional digits are cut, not
+    rounded, so 4.95 does not become 5.0.
+    """
+    if not text:
+        return text
+    # 0:04:9 — the tenth's dot read as a colon. h:mm:ss ends in two digits.
+    match = re.fullmatch(r"(\d{1,2}):([0-5]\d):(\d)$", text)
+    if match:
+        return f"{match.group(1)}:{match.group(2)}.{match.group(3)}"
+    match = re.fullmatch(r"(\d{1,2}):(\d):(\d)$", text)
+    if match:
+        return f"{match.group(1)}:0{match.group(2)}.{match.group(3)}"
+    # 0:4.9 / 0:4.95 — one second digit, then a tenth
+    match = re.fullmatch(r"(\d{1,2}):(\d)\.(\d{1,3})$", text)
+    if match:
+        return f"{match.group(1)}:0{match.group(2)}.{match.group(3)[0]}"
+    # 0:04.95 / 1:16.70 — keep one decimal place
+    match = re.fullmatch(r"(\d{1,2}):([0-5]\d)\.(\d{2,3})$", text)
+    if match:
+        return f"{match.group(1)}:{match.group(2)}.{match.group(3)[0]}"
+    # last seconds shown as s.dd: 4.95 -> 4.9. Not 12.34.
+    match = re.fullmatch(r"(\d)\.(\d{2,3})$", text)
+    if match:
+        return f"{match.group(1)}.{match.group(2)[0]}"
+    # 4:9 / 0:5 — a tenth whose dot was read as a colon
+    match = re.fullmatch(r"(\d):(\d)$", text)
+    if match:
+        return f"{match.group(1)}.{match.group(2)}"
+    return text
+
+
 def normalize_clock_text(text: str) -> str:
-    """Light cleanup: fullwidth digits/colon, strip spaces."""
+    """Light cleanup: fullwidth digits/colon, strip spaces, tenths in the last seconds."""
     if text is None:
         return ""
-    s = str(text).strip().translate(_FULLWIDTH).replace(" ", "")
-    # OCR sometimes uses ; or , for : or .
-    s = s.replace(";", ":").replace(",", ".")
+    s = str(text).strip().translate(_FULLWIDTH).translate(_TENTH_DOTS).replace(" ", "")
     # collapse duplicate separators
     s = re.sub(r":+", ":", s)
     s = re.sub(r"\.+", ".", s)
+    return _repair_game_clock_tenths(s)
+
+
+def normalize_shot_clock_text(text: str) -> str:
+    """24秒 / shot clock: whole seconds, or one tenth (`4.9`, `0.5`).
+
+    A comma or a single colon where the dot should be becomes `.`. A hundredth
+    or millisecond digit is cut (`4.95` -> `4.9`), not rounded. Integers stay
+    integers (`12` stays `12`, not `12.0`).
+    """
+    if text is None:
+        return ""
+    s = str(text).strip().translate(_FULLWIDTH).translate(_TENTH_DOTS).replace(" ", "")
+    s = re.sub(r":+", ":", s)
+    s = re.sub(r"\.+", ".", s)
+    # 0:04.9 / 0:04:9 on a shot clock is still 4.9 seconds
+    match = re.fullmatch(r"0:0*(\d{1,2})[.:](\d{1,3})", s)
+    if match:
+        s = f"{int(match.group(1))}.{match.group(2)}"
+    # colon as the decimal point: 4:9, 14:9, 0:5
+    match = re.fullmatch(r"(\d{1,2}):(\d)$", s)
+    if match:
+        s = f"{int(match.group(1))}.{match.group(2)}"
+    # 4.95 / 0.50 — one decimal place, no rounding
+    match = re.fullmatch(r"(\d{1,2})\.(\d{2,3})$", s)
+    if match:
+        s = f"{int(match.group(1))}.{match.group(2)[0]}"
+    match = re.fullmatch(r"\.(\d)$", s)
+    if match:
+        s = f"0.{match.group(1)}"
+    # 04.9 -> 4.9. Bare integers (08, 24) are left as read.
+    match = re.fullmatch(r"0+(\d+)\.(\d)$", s)
+    if match:
+        s = f"{int(match.group(1))}.{match.group(2)}"
     return s
 
 
@@ -178,9 +264,25 @@ def is_clock_box(name: str | None, settings: dict | None = None) -> bool:
     return False
 
 
+def is_shot_clock_box(name: str | None, settings: dict | None = None) -> bool:
+    """24秒 / shot clock, including 「进攻24秒」 and a second shot clock."""
+    if not name:
+        return False
+    if role_of(name) == SHOT_CLOCK:
+        return True
+    raw = str(name).strip()
+    if "24秒" in raw or "进攻时间" in raw:
+        return True
+    folded = raw.lower()
+    return "shot" in folded and "clock" in folded
+
+
 def prepare_reading(name: str | None, text: str, settings: dict | None = None) -> str:
     """Normalize text before format_regex / ordinal. Period -> plain digit."""
     settings = settings or {}
+    # Shot clock before the game clock: a 24秒 box is not mm:ss.
+    if is_shot_clock_box(name, settings):
+        return normalize_shot_clock_text(text)
     if is_clock_box(name, settings):
         return normalize_clock_text(text)
     if is_period_box(name, settings):
@@ -191,9 +293,23 @@ def prepare_reading(name: str | None, text: str, settings: dict | None = None) -
     return text if text is not None else ""
 
 
+# Digits plus the separators a tenth is drawn with. Scores stay on digits only.
+_TENTH_WHITELIST = "0123456789.,:·•・．"
+
+
 def whitelist_for_box(name: str | None, settings: dict | None, default_for_type) -> str:
-    """Char whitelist; period boxes allow Chinese 第N节 glyphs."""
+    """Char whitelist; period boxes allow Chinese 第N节 glyphs.
+
+    Shot clocks and game clocks must be allowed to emit a decimal point.
+    A digits-only whitelist drops the dot and the last seconds come out as
+    `49` or nothing.
+    """
     settings = settings or {}
+    if is_shot_clock_box(name, settings):
+        return _TENTH_WHITELIST
+    if is_clock_box(name, settings):
+        base = default_for_type or ""
+        return "".join(dict.fromkeys(base + _TENTH_WHITELIST))
     if is_period_box(name, settings):
         return PERIOD_CHAR_WHITELIST
     return default_for_type
@@ -201,3 +317,25 @@ def whitelist_for_box(name: str | None, settings: dict | None, default_for_type)
 
 def clock_passes_expanded(text: str) -> bool:
     return bool(re.fullmatch(CLOCK_FORMAT_EXPANDED, text or ""))
+
+
+def shot_clock_passes(text: str) -> bool:
+    """One or two digits, 0-39, or one tenth (`4.9`). Not a score."""
+    return bool(re.fullmatch(SHOT_CLOCK_FORMAT, text or ""))
+
+
+def soft_accept_reading(
+    name: str | None, text: str, settings: dict | None = None
+) -> bool:
+    """A tenth the box's saved format still rejects.
+
+    Shot-clock presets up through the digits-only `^[0-3]?\\d$` reject `4.9`.
+    A game clock saved as mm:ss rejects `0:04.9`. The text is already
+    prepare_reading's. Scores and fouls are not accepted here.
+    """
+    settings = settings or {}
+    if is_shot_clock_box(name, settings) and shot_clock_passes(text):
+        return True
+    if is_clock_box(name, settings) and clock_passes_expanded(text):
+        return True
+    return False

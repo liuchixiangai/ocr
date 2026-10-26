@@ -5678,8 +5678,12 @@ class MainWindow(QMainWindow):
         # change the list icon to green checkmark
         self.setFieldPlacement(item, PLACED)
 
-        # the field's default settings
+        # the field's default settings. A custom clock / 24秒 has no preset
+        # name on the info dict; LED defaults follow the field's own name so
+        # a new shot clock is not given the score debounce (4 frames / 200 ms).
         info = default_info_for_box_name(item.text())
+        if not info.get("name"):
+            info = {**info, "name": item.text()}
 
         self.detectionTargetsStorage.add_item(
             TextDetectionTarget(

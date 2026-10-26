@@ -30,7 +30,7 @@ CLEAR_AFTER_SECONDS = 2.0
 # 1 - Time MM:ss
 # 2 - Time ss.m
 # 3 - Time 0-59
-# 4 - Shotclock 0-39
+# 4 - Shotclock 0-39, or one tenth (4.9 / 0.5)
 # 5 - Score 1dd
 # 6 - Score ddd
 # 7 - Period 1-4
@@ -39,6 +39,10 @@ CLEAR_AFTER_SECONDS = 2.0
 # 10 - Any text
 # 11 - Any number
 # 12 - Custom
+# 24秒 / shot clock: whole seconds, or one tenth. A comma or a colon that OCR
+# used for the dot is normalized to '.' before this runs. Score presets stay
+# integers.
+SHOT_CLOCK_FORMAT = r"^(?:[0-3]?\d|[0-3]?\d\.\d)$"
 format_prefixes = [
     "^(?:(?:[0-5]?\d:[0-5]\d(?:\.\d)?)|(?:[0-5]?\d\.\d))$",  # Time MM:ss, MM:ss.d, ss.m
     "^[0-5]?\\d:[0-5]\\d$",  # Time MM:ss
@@ -46,7 +50,7 @@ format_prefixes = [
     # one or two digits: clocks show 9, not 09 (up to 0.3.0 these took exactly
     # two; storage.migrate_boxes updates the boxes that stored those)
     "^[0-5]?\\d$",  # Time 0-59
-    "^[0-3]?\\d$",  # Shotclock 0-39
+    SHOT_CLOCK_FORMAT,  # Shotclock 0-39, with a tenth in the last seconds
     "^1?\\d{1,2}$",  # Score 1dd
     "^\\d{1,3}$",  # Score ddd
     "^[1-4]$",  # Period 1-4 (cn_reading normalizes Chinese/Qn/Nth -> N)
@@ -178,6 +182,10 @@ def is_clock_like_field(name, field_type=None) -> bool:
     for marker in ("比赛时间", "24秒", "计时"):
         if marker in raw:
             return True
+    # 「总计」is the game clock on some boards. Exact name only, so a box
+    # called 得分总计 is not treated as a countdown.
+    if raw in ("总计", "总时间"):
+        return True
     n = raw.lower()
     # exact / common English names; avoid bare "time" matching "timeout"
     if n in {
@@ -238,6 +246,26 @@ def default_info_for_box_name(name):
     return default_custom_box_info
 
 
+# Shotclock 0-39 before tenths: one or two digits, no decimal point.
+_OLD_SHOT_CLOCK_FORMAT = r"^[0-3]?\d$"
+
+
+def _current_format_regex(settings, box_info):
+    """The box's format, with the old digits-only shot-clock preset widened.
+
+    Saved setups keep ``^[0-3]?\\d$`` in the settings file. That preset now
+    also allows one tenth (``4.9``). Other expressions, including score
+    formats, are left as stored.
+    """
+    if settings and "format_regex" in settings:
+        regex = settings["format_regex"]
+    else:
+        regex = box_info["format_regex"]
+    if regex == _OLD_SHOT_CLOCK_FORMAT:
+        return SHOT_CLOCK_FORMAT
+    return regex
+
+
 def normalize_settings_dict(settings, box_info):
     # Normalize the settings dict with default values if they are not present
     if not settings:
@@ -259,11 +287,7 @@ def normalize_settings_dict(settings, box_info):
             if "obs_source_name" in settings
             else box_info["obs_source_name"]
         ),
-        "format_regex": (
-            settings["format_regex"]
-            if "format_regex" in settings
-            else box_info["format_regex"]
-        ),
+        "format_regex": _current_format_regex(settings, box_info),
         "type": (settings["type"] if "type" in settings else box_info["type"]),
         "smoothing": (settings["smoothing"] if "smoothing" in settings else False),
         "clear_value": (

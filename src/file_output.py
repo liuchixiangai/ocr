@@ -69,6 +69,8 @@ _JSON_KEY_BY_NAME = {
     "主队得分": "home_score",
     "客队得分": "away_score",
     "比赛时间": "game_clock",
+    "总计": "game_clock",
+    "总时间": "game_clock",
     "节次": "period",
     "主队犯规": "home_fouls",
     "客队犯规": "away_fouls",

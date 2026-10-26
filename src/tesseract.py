@@ -975,10 +975,9 @@ class TextDetector:
         if format_regex is not None and is_valid_regex(format_regex):
             # check the text matches the regex fully
             if not re.fullmatch(format_regex, text):
-                # soft-accept mm:ss.d when box still has old mm:ss|ss.m preset
-                if cn_reading.is_clock_box(box_name, settings) and (
-                    cn_reading.clock_passes_expanded(text)
-                ):
+                # Tenths the saved preset still rejects: game clock mm:ss.d /
+                # s.d, and a shot clock's 4.9. Scores stay on their integer regex.
+                if cn_reading.soft_accept_reading(box_name, text, settings):
                     textstate = ResultState.Success
                 else:
                     textstate = ResultState.FailedFilter

@@ -34,7 +34,7 @@ SAMPLE_JSON = (
     '    "away_score": "55",\n'
     '    "game_clock": "01:16.7",\n'
     '    "period": "4",\n'
-    '    "shot_clock": "10"\n'
+    '    "shot_clock": "4.9"\n'
     "  }\n"
     "]\n"
 )
@@ -188,7 +188,7 @@ class VmixOutboundGuide:
                 "<li>标题里用 Data Source 的英文列名绑定：<b>home_score / away_score / game_clock / period / home_fouls / away_fouls / shot_clock</b>——<b>不要</b>再加五个 Text 源</li>"
                 "</ol>"
                 "<p style='margin:4px 0 0 0;color:#bfdbfe;'>"
-                "vMix 刷新建议改成 100ms，否则软件再快也会一秒一跳。说明：vMix 的 JSON 列名必须是英文，软件已自动把「主队得分」等写成 home_score 等；CSV 仍可用中文表头。"
+                "vMix 刷新建议改成 100ms，否则软件再快也会一秒一跳。比赛时间和 24 秒最后几秒会带一位小数（如 game_clock 为 0:04.9、shot_clock 为 4.9），原样写出，不砍成整数。说明：vMix 的 JSON 列名必须是英文，软件已自动把「主队得分」等写成 home_score 等；CSV 仍可用中文表头。"
                 "备选：勾选 CSV 后，vMix 用 "
                 "<b>Data Sources → + → Excel/CSV/Google Sheets</b> 读 results.csv"
                 "（追加方式选「不追加」）。</p>"
@@ -200,7 +200,7 @@ class VmixOutboundGuide:
             self.ui.checkBox_saveJson.setText("给 vMix 的 JSON（推荐）· results.json")
             self.ui.checkBox_saveJson.setToolTip(
                 "只写一个 results.json：全部字段在同一行数组里，"
-                '格式 [{"home_score":"52","away_score":"55","game_clock":"01:16.7","period":"4","shot_clock":"10"}]。'
+                '格式 [{"home_score":"52","away_score":"55","game_clock":"0:04.9","period":"4","shot_clock":"4.9"}]。'
                 "vMix JSON 列名必须是英文（软件已自动转换）；给 Data Sources → JSON 用。"
             )
             self.ui.checkBox_saveCsv.setText("给 vMix 的 CSV · results.csv")

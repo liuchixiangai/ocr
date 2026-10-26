@@ -664,7 +664,7 @@ def test_two_digit_clock_formats_are_migrated(data_dir, memory_storage, caplog):
     # digits, so a shot clock showing 9 (not 09) failed the filter and the
     # outputs froze at 10. Boxes that stored those presets get the new ones.
     assert storage.BOXES_SCHEMA_VERSION == 3
-    assert format_prefixes[4] == "^[0-3]?\\d$"
+    assert format_prefixes[4] == r"^(?:[0-3]?\d|[0-3]?\d\.\d)$"
     assert format_prefixes[3] == "^[0-5]?\\d$"
     store_data(
         SETTINGS,

@@ -176,6 +176,8 @@ _CN_ROLE_OF = {
     "主队得分": HOME_SCORE,
     "客队得分": AWAY_SCORE,
     "比赛时间": CLOCK,
+    "总计": CLOCK,
+    "总时间": CLOCK,
     "节次": PERIOD,
     "24秒": SHOT_CLOCK,
     "主队犯规": HOME_FOULS,
