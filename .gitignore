@@ -11,6 +11,8 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+*.bak
+*.bak-*
 ocr_eval/
 
 # PP-OCR weights downloaded by scripts/fetch_models.py (not in git).
