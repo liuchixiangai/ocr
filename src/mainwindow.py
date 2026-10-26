@@ -2454,7 +2454,9 @@ class MainWindow(QMainWindow):
         box.setText(
             QCoreApplication.translate(
                 "MainWindow",
-                "The boxes are read {rate} times per second instead of {target}.",
+                "The boxes are read {rate} times per second instead of {target}. "
+                "The preview keeps moving; this number is only how often the boxes "
+                "are read.",
             ).format(
                 rate=f"{snapshot.ocr_rate or 0:.1f}",
                 target=f"{snapshot.ocr_target or 0:g}",
@@ -4696,6 +4698,16 @@ class MainWindow(QMainWindow):
             "The video source: a camera, capture card or NDI source, a video file, "
             "a stream URL or a screen capture",
         )
+        if (
+            camera_info is not None
+            and camera_info.type == CameraInfo.CameraType.SCREEN_CAPTURE
+        ):
+            tooltip += "\n" + QCoreApplication.translate(
+                "MainWindow",
+                "For vMix, choose the vMix Video camera instead of capturing the "
+                "vMix window. Play and pause buttons in the preview mean this is "
+                "the program window, not a clean picture.",
+            )
         combo.setToolTip(f"{full_name}\n{tooltip}" if full_name else tooltip)
 
         camera = (

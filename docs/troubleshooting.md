@@ -187,19 +187,19 @@ ScoreSight 0.1.x could read digits on an empty area, such as an unlit digit posi
 
 ## Performance problems
 
-### Low Frames/s, Updates/s or Previews/s (#20)
+### Low Frames/s, OCR/s or Previews/s (#20)
 
 ([#20](https://github.com/royshil/scoresight/issues/20))
 
-- **Previews/s ≈ 1 is by design**: the preview refreshes once per second to save CPU. It doesn't affect readings.
-- **Updates/s** follows the **Detections / s** slider (default 5, maximum 15). Raise the slider if you need more.
+- **Previews/s** should be near 15 for a camera, a virtual camera or a video file when the computer keeps up. It is not the OCR rate. **Frames/s** is how fast pictures are read; **OCR/s** (and the status bar's OCR number) is how often the boxes are read.
+- **OCR/s** follows the **Detections / s** slider (default 5, maximum 15). Raise the slider if you need more readings. It does not set how smooth the preview is.
 - **Frames/s** is capped at about 33. Lower values mean the source delivers fewer frames or the CPU is busy with OCR. Reduce the number of boxes, crop the picture, enable **Skip Similar Image**, and lower the camera resolution.
 
 See [Performance Tuning](performance.md).
 
 ### Video freezes when Detections / s is at 1 (#53)
 
-In ScoreSight 0.1.x, setting **Detections / s** to 1 stopped all processing, and the UI could stay disabled after a restart ([#53](https://github.com/royshil/scoresight/issues/53)). This is fixed in 0.2.0: the first frame is shown and read right away, and the preview refreshes about once a second at any detection rate. On older versions, set the slider to 2 or higher.
+In ScoreSight 0.1.x, setting **Detections / s** to 1 stopped all processing, and the UI could stay disabled after a restart ([#53](https://github.com/royshil/scoresight/issues/53)). This is fixed in 0.2.0: the first frame is shown and read right away, and the preview keeps moving at any detection rate. On older versions, set the slider to 2 or higher.
 
 ### The window is slow or freezes when a vMix/UNO/API target is offline
 

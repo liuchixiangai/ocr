@@ -2,7 +2,7 @@
 title: Performance Tuning
 parent: Guides
 nav_order: 6
-description: "Understand Frames/s, Updates/s and Previews/s, and reduce CPU use and latency in ScoreSight."
+description: "Understand Frames/s, OCR/s and Previews/s, and reduce CPU use and latency in ScoreSight."
 ---
 
 # Performance Tuning
@@ -22,15 +22,15 @@ Turn on **Stats** (above the picture, or **View** > **Statistics overlay**) to s
 | Number | What it measures | Typical value |
 |---|---|---|
 | **Frames/s** | Frames read from the source per second. ScoreSight caps this at about 33. | 25–33 for a healthy camera or stream. Lower if the source is slower or the CPU is busy |
-| **Updates/s** | How many times per second all boxes are read. | Close to your **Detections / s** setting (1–15, default **5**) |
-| **Previews/s** | How often the preview picture in the viewer refreshes. | About **1**. This is intentional |
+| **OCR/s** | How many times per second all boxes are read. | Close to your **Detections / s** setting (1–15, default **5**) |
+| **Previews/s** | How often the preview picture in the viewer refreshes. | About **15** when the computer keeps up, for a camera and for a video file |
 
 {: .important }
-A low **Previews/s** is **not** a problem. The preview is refreshed about once per second, at any **Detections / s** setting, to save CPU for recognition. Readings are still taken and sent at the **Updates/s** rate. If your graphics update slowly, look at **Updates/s** and your output settings, not at the preview.
+**Previews/s** is how often the picture moves. It aims for about 15 per second, at any **Detections / s** setting. A slow OCR does not slow the picture: readings are still taken and sent at the **OCR/s** rate. If **Frames/s** (pictures read from the source) is healthy and **Previews/s** is near 15, the preview is keeping up. If the numbers you send update slowly, look at **OCR/s** and your output settings.
 
 When a source opens, its first frame is shown and read right away, whatever the detection rate.
 
-The status bar at the bottom of the window shows the same numbers without the overlay: the source with its resolution and **frames per second**, and **Reading 4.7/s of 5**, the detection rate against your **Detections / s** setting. The reading rate turns orange when it falls below 70% of the setting: the computer can't keep up, so lower **Detections / s**, use fewer boxes, a lower source resolution or a cheaper [OCR model](ocr-models.md#fast-or-accurate-the-cpu-cost). Its tooltip says which model **PP-OCR (automatic)** is reading with, and why.
+The status bar at the bottom of the window shows the same numbers without the overlay: the source with its resolution and capture **frames per second**, and **OCR 4.7/s of 5**, how often the boxes are read against your **Detections / s** setting. That OCR number is not the preview rate. The reading rate turns orange when it falls below 70% of the setting: the computer can't keep up, so lower **Detections / s**, use fewer boxes, a lower source resolution or a cheaper [OCR model](ocr-models.md#fast-or-accurate-the-cpu-cost). Its tooltip says which model **PP-OCR (automatic)** is reading with, and why.
 
 The boxes are read on a thread of their own, so a slow OCR model never holds up the video: frames keep arriving at the source's rate (the picture of a live camera or stream stays current, and a video file plays at normal speed), and each reading is made from the latest frame. When the OCR can't keep up, it reads less often instead.
 

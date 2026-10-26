@@ -154,9 +154,9 @@ Each box's **label** sits **below** the box, so it covers neither the digits nor
 
 | Statistic | Meaning |
 |---|---|
-| **Frames/s** | How many frames per second ScoreSight reads from the source (capped at about 33). |
-| **Updates/s** | How many times per second the boxes are read. Follows the **Detections / s** slider (1–15, default 5). |
-| **Previews/s** | How often the preview picture is refreshed. This is about **1 per second on purpose**, at any Detections / s setting, to leave the CPU for OCR. It does not affect how fast values are read or sent. |
+| **Frames/s** | How many frames per second ScoreSight reads from the source (capped at about 33). This is capture, not OCR. |
+| **OCR/s** | How many times per second the boxes are read. Follows the **Detections / s** slider (1–15, default 5). |
+| **Previews/s** | How often the preview picture is refreshed. About **15 per second** for a camera, a virtual camera or a video file when the computer keeps up, at any Detections / s setting. |
 | **Resolution** | The resolution delivered by the source. |
 
 See [Performance Tuning](performance.md) for how to interpret and improve these numbers.

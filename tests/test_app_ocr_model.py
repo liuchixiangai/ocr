@@ -408,7 +408,7 @@ def test_loading_and_fallback_in_the_status_bar(running_window, ppocr_available)
     )
     window.refreshLiveStatus()
     assert bar.label_ocr.text() == (
-        "Reading 4.8/s of 5 · with Tesseract: PP-OCR didn't load"
+        "OCR 4.8/s of 5 · with Tesseract: PP-OCR didn't load"
     )
     assert "RuntimeError: no onnxruntime" in bar.label_ocr.toolTip()
     assert bar.label_ocr.styleSheet() != ""
