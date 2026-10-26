@@ -3950,6 +3950,31 @@ def test_the_first_run_card_lists_the_cameras(make_window, patched, no_dialogs):
     assert not window.ui.frame_firstRun.isVisibleTo(window)
 
 
+def test_flip_buttons_are_saved(main_window):
+    ui = main_window.ui
+    assert ui.toolButton_flipHorizontal.text() == "Flip H"
+    assert ui.toolButton_flipVertical.text() == "Flip V"
+    assert not ui.toolButton_flipHorizontal.isChecked()
+    # the row is off until a source delivers frames; the buttons still save
+    ui.widget_viewTools.setEnabled(True)
+    ui.toolButton_flipHorizontal.click()
+    ui.toolButton_flipVertical.click()
+    assert fetch_data("scoresight.json", "flip_horizontal") is True
+    assert fetch_data("scoresight.json", "flip_vertical") is True
+    # a capture started afterwards reads the same choice
+    from camera_thread import FrameCropAndRotation
+
+    crop = FrameCropAndRotation()
+    try:
+        assert crop.flipHorizontal is True
+        assert crop.flipVertical is True
+        ui.toolButton_flipHorizontal.click()
+        assert fetch_data("scoresight.json", "flip_horizontal") is False
+        assert crop.flipHorizontal is False
+    finally:
+        crop.close()
+
+
 def test_the_rotate_button_shows_the_angle(main_window, qapp):
     ui = main_window.ui
     assert ui.toolButton_rotate.text() == "Rotate 90° · 0°"

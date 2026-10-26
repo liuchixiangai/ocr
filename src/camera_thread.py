@@ -18,6 +18,8 @@ from storage import (
     SETTINGS_FILE,
     TextDetectionTargetMemoryStorage,
     fetch_data,
+    remove_data,
+    store_data,
     subscribe_to_data,
     unsubscribe_from_data,
 )
@@ -148,10 +150,63 @@ def to_gray(frame):
 
 
 def fourcc_code(fourcc) -> int | None:
-    """The FOURCC int for a stored 4-character code, or None if it isn't one."""
+    """The FOURCC int for a stored 4-character code, or None if it isn't one.
+
+    DirectShow sometimes reports a media-subtype GUID (RGB24's is 0xE436EB7D)
+    which, read as Latin-1, looks like "}ë6ä". That string must not be sent
+    back to the device.
+    """
     if not isinstance(fourcc, str) or len(fourcc) != 4 or fourcc == "NULL":
         return None
+    if not fourcc.isascii() or not fourcc.isalnum():
+        return None
     return cv2.VideoWriter_fourcc(*fourcc)
+
+
+# Frame rate asked of a camera. 30 is the default when a device doesn't report
+# one. Anything below MIN (including 1, the old spin box's floor, which is what
+# a failed read of 0 or -1 used to be saved as) is not a real mode.
+DEFAULT_CAPTURE_FPS = 30
+MIN_CAPTURE_FPS = 5
+MAX_CAPTURE_FPS = 240
+
+
+def usable_capture_fps(value) -> int | None:
+    """A frame rate worth showing or applying, or None when the device (or the
+    saved value) didn't provide one. 1 and below is never usable."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or number <= 1 or number > MAX_CAPTURE_FPS:
+        return None
+    fps = int(round(number))
+    if fps < MIN_CAPTURE_FPS or fps > MAX_CAPTURE_FPS:
+        return None
+    return fps
+
+
+def is_bad_low_fps(value) -> bool:
+    """True for a stored or reported rate that would stick the camera at a
+    crawl: 0, 1, or anything else below the lowest rate the dialog allows."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number) and 0 <= number < MIN_CAPTURE_FPS
+
+
+def fps_for_capture(value) -> float | None:
+    """The frame rate to pass to CAP_PROP_FPS, or None to leave the driver's.
+
+    A saved 1 is applied as 30. Nothing saved (None) stays the driver's rate.
+    """
+    if is_bad_low_fps(value):
+        return float(DEFAULT_CAPTURE_FPS)
+    fps = usable_capture_fps(value)
+    if fps is None:
+        return None
+    return float(fps)
 
 
 def _positive(value):
@@ -229,6 +284,18 @@ def is_zero_text(text: str) -> bool:
     return _ZERO_TEXT.fullmatch(text) is not None
 
 
+def apply_flip(frame, horizontal: bool, vertical: bool):
+    """Mirror a frame. horizontal is left-right of the picture as shown
+    (after rotation); both together is a half turn."""
+    if horizontal and vertical:
+        return cv2.flip(frame, -1)
+    if horizontal:
+        return cv2.flip(frame, 1)
+    if vertical:
+        return cv2.flip(frame, 0)
+    return frame
+
+
 class FrameCropAndRotation:
     def __init__(self):
         self.isCropSet = fetch_data(SETTINGS_FILE, "crop_mode", False)
@@ -237,6 +304,8 @@ class FrameCropAndRotation:
         self.cropLeft = fetch_data(SETTINGS_FILE, "left_crop", 0)
         self.cropRight = fetch_data(SETTINGS_FILE, "right_crop", 0)
         self.rotation = fetch_data(SETTINGS_FILE, "rotation", 0)
+        self.flipHorizontal = bool(fetch_data(SETTINGS_FILE, "flip_horizontal", False))
+        self.flipVertical = bool(fetch_data(SETTINGS_FILE, "flip_vertical", False))
         self._subscriptions = [
             ("crop_mode", self.setCropMode),
             ("top_crop", self.setCropTop),
@@ -244,6 +313,8 @@ class FrameCropAndRotation:
             ("left_crop", self.setCropLeft),
             ("right_crop", self.setCropRight),
             ("rotation", self.setRotation),
+            ("flip_horizontal", self.setFlipHorizontal),
+            ("flip_vertical", self.setFlipVertical),
         ]
         for document_name, callback in self._subscriptions:
             subscribe_to_data(SETTINGS_FILE, document_name, callback)
@@ -270,6 +341,12 @@ class FrameCropAndRotation:
 
     def setRotation(self, rotation):
         self.rotation = rotation
+
+    def setFlipHorizontal(self, flip):
+        self.flipHorizontal = bool(flip)
+
+    def setFlipVertical(self, flip):
+        self.flipVertical = bool(flip)
 
 
 class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
@@ -305,10 +382,31 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         self._apply_requested = False
         self._subscriptions = []
         if apply_video_settings:
-            self.fps = fetch_data(SETTINGS_FILE, "fps", None)
+            raw_fps = fetch_data(SETTINGS_FILE, "fps", None)
+            # A saved 1 (the dialog's old minimum, used whenever a capture card
+            # reported no frame rate) would lock the device at one frame a
+            # second. Replace it before anything applies it.
+            if is_bad_low_fps(raw_fps):
+                logger.info(
+                    "Stored frame rate %s is not usable; using %s",
+                    raw_fps,
+                    DEFAULT_CAPTURE_FPS,
+                )
+                store_data(SETTINGS_FILE, "fps", DEFAULT_CAPTURE_FPS)
+                self.fps = DEFAULT_CAPTURE_FPS
+            else:
+                self.fps = raw_fps
             self.width = fetch_data(SETTINGS_FILE, "width", None)
             self.height = fetch_data(SETTINGS_FILE, "height", None)
-            self.fourcc = fetch_data(SETTINGS_FILE, "fourcc", None)
+            raw_fourcc = fetch_data(SETTINGS_FILE, "fourcc", None)
+            if raw_fourcc not in (None, "", "NULL") and fourcc_code(raw_fourcc) is None:
+                logger.info(
+                    "Ignoring stored video format %r; it isn't a format name",
+                    raw_fourcc,
+                )
+                remove_data(SETTINGS_FILE, "fourcc")
+                raw_fourcc = None
+            self.fourcc = raw_fourcc
             self.backend = self._effective_backend(
                 fetch_data(SETTINGS_FILE, "backend", None)
             )
@@ -367,7 +465,7 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
             set_resolution(capture, int(width), int(height))
         elif opening:
             set_camera_highest_resolution(capture)
-        fps = _positive(self.fps)
+        fps = fps_for_capture(self.fps)
         if fps is not None:
             capture.set(cv2.CAP_PROP_FPS, fps)
 
@@ -709,7 +807,8 @@ class TimerThread(QThread):
             fps = float(self.video_capture.get(cv2.CAP_PROP_FPS))
         except Exception:
             return None
-        if not math.isfinite(fps) or fps <= 0 or fps > 1000:
+        # 1 (and below) is a failed read on many capture cards, not a mode
+        if not math.isfinite(fps) or fps < MIN_CAPTURE_FPS or fps > 1000:
             return None
         return min(fps, 1000.0 / self.frame_interval)
 
@@ -911,7 +1010,7 @@ class TimerThread(QThread):
             self.last_emit_time = now
             if self.preview_uncropped:
                 # a new crop is being dragged on the whole picture
-                self.update_signal.emit(self.rotate_frame(source))
+                self.update_signal.emit(self.orient_frame(source))
             elif self.preview_uncorrected:
                 # new four-corner points are being picked on this picture
                 self.update_signal.emit(adjusted)
@@ -933,10 +1032,10 @@ class TimerThread(QThread):
                 self.update_signal.emit(frame_rgb)
 
     def latestRotatedFrame(self):
-        """The last frame transformed, rotated only (the picture Drag to crop
-        shows), or None before one."""
+        """The last frame rotated and mirrored, before the crop (the picture
+        Drag to crop and Auto crop look at), or None before one."""
         source = self.latest_source
-        return None if source is None else self.rotate_frame(source)
+        return None if source is None else self.orient_frame(source)
 
     def latestPicture(self):
         """The last picture the boxes were read from, or None before one."""
@@ -1113,10 +1212,24 @@ class TimerThread(QThread):
             frame_rgb = cv2.rotate(frame_rgb, rotateCode)
         return frame_rgb
 
-    def adjust_frame(self, frame_rgb):
-        """Apply the rotation, crop and stabilization."""
+    def orient_frame(self, frame_rgb):
+        """Rotation, then mirror, in the space the crop and the boxes use.
+
+        The mirror is of the picture as shown, so a horizontal flip stays
+        left-right after a 90° rotation. The preview, the boxes and the OCR
+        all read this picture.
+        """
         crop = self.crop
-        frame_rgb = self.rotate_frame(frame_rgb)
+        return apply_flip(
+            self.rotate_frame(frame_rgb),
+            bool(crop.flipHorizontal),
+            bool(crop.flipVertical),
+        )
+
+    def adjust_frame(self, frame_rgb):
+        """Apply the rotation, mirror, crop and stabilization."""
+        crop = self.crop
+        frame_rgb = self.orient_frame(frame_rgb)
 
         # apply top-level crop if set
         if crop.isCropSet:

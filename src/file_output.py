@@ -125,7 +125,6 @@ def json_row_from_values(values) -> dict:
     return row
 
 
-
 def is_good_reading(result: TextDetectionTargetWithResult) -> bool:
     """A reading worth publishing: Success or SameNoChange with a text (an
     empty one from a box that "When blank" cleared)."""

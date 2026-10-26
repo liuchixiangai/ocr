@@ -16,9 +16,15 @@ class Ui_Dialog(object):
     def setupUi(self, Dialog):
         if not Dialog.objectName():
             Dialog.setObjectName(u"Dialog")
-        Dialog.resize(400, 259)
+        Dialog.resize(460, 420)
         self.gridLayout = QGridLayout(Dialog)
         self.gridLayout.setObjectName(u"gridLayout")
+        self.label_captureHint = QLabel(Dialog)
+        self.label_captureHint.setObjectName(u"label_captureHint")
+        self.label_captureHint.setWordWrap(True)
+
+        self.gridLayout.addWidget(self.label_captureHint, 0, 0, 1, 1)
+
         self.widget = QWidget(Dialog)
         self.widget.setObjectName(u"widget")
         self.formLayout = QFormLayout(self.widget)
@@ -28,11 +34,11 @@ class Ui_Dialog(object):
 
         self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.label)
 
-        self.comboBox_fourcc = QComboBox(self.widget)
-        self.comboBox_fourcc.addItem("")
-        self.comboBox_fourcc.setObjectName(u"comboBox_fourcc")
+        self.label_formatValue = QLabel(self.widget)
+        self.label_formatValue.setObjectName(u"label_formatValue")
+        self.label_formatValue.setWordWrap(True)
 
-        self.formLayout.setWidget(2, QFormLayout.ItemRole.FieldRole, self.comboBox_fourcc)
+        self.formLayout.setWidget(2, QFormLayout.ItemRole.FieldRole, self.label_formatValue)
 
         self.label_2 = QLabel(self.widget)
         self.label_2.setObjectName(u"label_2")
@@ -41,11 +47,18 @@ class Ui_Dialog(object):
 
         self.spinBox_fps = QSpinBox(self.widget)
         self.spinBox_fps.setObjectName(u"spinBox_fps")
-        self.spinBox_fps.setMinimum(1)
-        self.spinBox_fps.setMaximum(60)
+        self.spinBox_fps.setMinimum(5)
+        self.spinBox_fps.setMaximum(240)
         self.spinBox_fps.setValue(30)
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.spinBox_fps)
+
+        self.label_fpsNote = QLabel(self.widget)
+        self.label_fpsNote.setObjectName(u"label_fpsNote")
+        self.label_fpsNote.setVisible(False)
+        self.label_fpsNote.setWordWrap(True)
+
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.label_fpsNote)
 
         self.label_3 = QLabel(self.widget)
         self.label_3.setObjectName(u"label_3")
@@ -71,6 +84,7 @@ class Ui_Dialog(object):
 
         self.plainTextEdit_videoProps = QPlainTextEdit(self.widget)
         self.plainTextEdit_videoProps.setObjectName(u"plainTextEdit_videoProps")
+        self.plainTextEdit_videoProps.setReadOnly(True)
 
         self.formLayout.setWidget(5, QFormLayout.ItemRole.FieldRole, self.plainTextEdit_videoProps)
 
@@ -105,10 +119,14 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"Dialog", None))
+        self.label_captureHint.setText(QCoreApplication.translate("Dialog", u"The video format is chosen by the camera driver and can't be changed here: some capture cards report a code that isn't a real format name. Details the device doesn't report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 30 \u2014 never 1.", None))
         self.label.setText(QCoreApplication.translate("Dialog", u"Video Format", None))
-        self.comboBox_fourcc.setItemText(0, QCoreApplication.translate("Dialog", u"Default", None))
-
+        self.label_formatValue.setText(QCoreApplication.translate("Dialog", u"Driver default (not editable)", None))
         self.label_2.setText(QCoreApplication.translate("Dialog", u"FPS", None))
+#if QT_CONFIG(tooltip)
+        self.spinBox_fps.setToolTip(QCoreApplication.translate("Dialog", u"30 is the default. 1 is not allowed: a capture card that doesn't report a frame rate used to be saved as 1.", None))
+#endif // QT_CONFIG(tooltip)
+        self.label_fpsNote.setText("")
         self.label_3.setText(QCoreApplication.translate("Dialog", u"Resolution", None))
         self.comboBox_resolution.setItemText(0, QCoreApplication.translate("Dialog", u"Default", None))
 

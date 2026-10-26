@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QWizardPage,
     QLabel,
     QVBoxLayout,
-    QCheckBox,
 )
 
 from product_brand import APP_DISPLAY_NAME

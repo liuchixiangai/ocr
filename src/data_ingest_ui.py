@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -85,9 +84,7 @@ class DataIngestDialog(QDialog):
         self.combo_transport.addItem(
             "TCP 客户端（本机去连对方推送）", TRANSPORT_TCP_CLIENT
         )
-        self.combo_transport.addItem(
-            "串口 COM（USB 转 RS232/485）", TRANSPORT_SERIAL
-        )
+        self.combo_transport.addItem("串口 COM（USB 转 RS232/485）", TRANSPORT_SERIAL)
         tx_form.addRow("传输", self.combo_transport)
 
         self.edit_host = QLineEdit()
@@ -175,7 +172,9 @@ class DataIngestDialog(QDialog):
                 return
 
     def _wire(self) -> None:
-        self.combo_transport.currentIndexChanged.connect(self._refresh_transport_enabled)
+        self.combo_transport.currentIndexChanged.connect(
+            self._refresh_transport_enabled
+        )
         self.btn_save.clicked.connect(self._save)
         self.btn_start.clicked.connect(self._start)
         self.btn_stop.clicked.connect(self._stop)

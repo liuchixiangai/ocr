@@ -200,6 +200,49 @@ def test_crop_larger_than_the_frame_keeps_the_thread_working(make_thread, make_t
     assert len(thread.results) == 1
 
 
+@pytest.mark.parametrize(
+    ("horizontal", "vertical", "code"),
+    [
+        (True, False, 1),
+        (False, True, 0),
+        (True, True, -1),
+    ],
+)
+def test_flip_is_what_the_preview_and_the_ocr_read(
+    make_thread, make_target, horizontal, vertical, code
+):
+    """Horizontal and vertical mirrors (and both) are the picture the preview
+    and the OCR read. Neither is only a toolbar flag."""
+    thread = make_thread()
+    thread.detectionTargetsStorage.add_item(make_target("Home Score"))
+    thread.crop.flipHorizontal = horizontal
+    thread.crop.flipVertical = vertical
+    frame = color_frame()
+    frame[0, 0] = (9, 8, 7)
+    frame[0, -1] = (1, 2, 3)
+    frame[-1, 0] = (4, 5, 6)
+    thread.process_frame(frame)
+    expected = cv2.flip(frame, code)
+    assert np.array_equal(thread.previews[0], expected)
+    _binary, gray, _rects, display = thread.textDetector.calls[0]
+    assert display is None
+    assert np.array_equal(gray, cv2.cvtColor(expected, cv2.COLOR_BGR2GRAY))
+    assert np.array_equal(thread.latestRotatedFrame(), expected)
+
+
+def test_flip_follows_the_saved_settings(make_thread):
+    store_data("scoresight.json", "flip_horizontal", True)
+    store_data("scoresight.json", "flip_vertical", True)
+    thread = make_thread()
+    assert thread.crop.flipHorizontal is True
+    assert thread.crop.flipVertical is True
+    frame = color_frame()
+    assert np.array_equal(thread.adjust_frame(frame), cv2.flip(frame, -1))
+    store_data("scoresight.json", "flip_horizontal", False)
+    assert thread.crop.flipHorizontal is False
+    assert np.array_equal(thread.adjust_frame(frame), cv2.flip(frame, 0))
+
+
 def test_rotation_and_binary_preview(make_thread, make_target):
     thread = make_thread(cadence=0.1)
     thread.detectionTargetsStorage.add_item(make_target("Home Score"))
@@ -640,6 +683,36 @@ def fake_video_capture(monkeypatch):
 def store_video_settings(**settings):
     for name, value in settings.items():
         store_data("scoresight.json", name, value)
+
+
+def test_a_stored_frame_rate_of_one_opens_at_thirty(fake_video_capture):
+    store_video_settings(fps=1, width=1280, height=720)
+    OpenCVVideoCaptureWithSettings(0, cv2.CAP_DSHOW, apply_video_settings=True)
+    [device] = fake_video_capture.instances
+    assert (cv2.CAP_PROP_FPS, 30.0) in device.calls
+    assert storage.fetch_data("scoresight.json", "fps") == 30
+
+
+def test_an_unset_frame_rate_is_left_to_the_driver(fake_video_capture):
+    # Nothing saved must not become 1. The old dialog's minimum was 1, so a
+    # failed read (0 or -1) was clamped to 1 and then applied.
+    OpenCVVideoCaptureWithSettings(0, cv2.CAP_DSHOW, apply_video_settings=True)
+    [device] = fake_video_capture.instances
+    assert not any(
+        isinstance(call, tuple) and call[0] == cv2.CAP_PROP_FPS for call in device.calls
+    )
+    assert storage.fetch_data("scoresight.json", "fps") is None
+
+
+def test_a_garbled_format_is_not_applied(fake_video_capture):
+    store_video_settings(fourcc="}ë6ä", width=640, height=480)
+    OpenCVVideoCaptureWithSettings(0, cv2.CAP_DSHOW, apply_video_settings=True)
+    [device] = fake_video_capture.instances
+    assert not any(
+        isinstance(call, tuple) and call[0] == cv2.CAP_PROP_FOURCC
+        for call in device.calls
+    )
+    assert storage.fetch_data("scoresight.json", "fourcc") is None
 
 
 def test_stored_video_settings_are_applied_when_a_camera_opens(fake_video_capture):

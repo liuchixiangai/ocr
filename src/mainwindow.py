@@ -149,7 +149,6 @@ from defaults import (
     default_boxes,
     default_info_for_box_name,
     normalize_settings_dict,
-    is_clock_like_field,
     force_clock_zero_latency,
 )
 
@@ -193,6 +192,7 @@ from update_check import (
     show_update_dialog,
     update_checks_enabled,
 )
+
 try:
     from gw_auto_update import (
         check_gw_update,
@@ -200,8 +200,11 @@ try:
         show_update_dialog as show_gw_update_dialog,
     )
 except Exception:  # pragma: no cover
+
+    def is_guangwei_channel():
+        return False
+
     check_gw_update = None  # type: ignore
-    is_guangwei_channel = lambda: False  # type: ignore
     show_gw_update_dialog = None  # type: ignore
 from log_view import LogViewerDialog
 import file_output
@@ -503,6 +506,8 @@ class MainWindow(QMainWindow):
 
         # connect toolButton_rotate
         self.ui.toolButton_rotate.clicked.connect(self.rotateImage)
+        self.ui.toolButton_flipHorizontal.clicked.connect(self.toggleFlipHorizontal)
+        self.ui.toolButton_flipVertical.clicked.connect(self.toggleFlipVertical)
 
         self.ui.horizontalSlider_detectionCadence.setValue(
             fetch_data("scoresight.json", "detection_cadence", 5)
@@ -1887,6 +1892,10 @@ class MainWindow(QMainWindow):
             if lan_address != self.lanAddress:
                 self.lanAddress = lan_address
                 self.updateBrowserEndpoints()
+        # The first output-folder write happens while the window is still
+        # being built, before the status bar exists.
+        if not hasattr(self, "statusBarWidgets"):
+            return
         outputs = self.refreshDestinations(now)
         self.gameUiHandler.refresh()
         snapshot = self.statusSnapshot(now, outputs)
@@ -1934,6 +1943,8 @@ class MainWindow(QMainWindow):
             # the picture adjustments, for the source's tooltip
             crop = getattr(thread, "crop", None)
             values["rotation"] = int(getattr(crop, "rotation", 0) or 0)
+            values["flip_horizontal"] = bool(getattr(crop, "flipHorizontal", False))
+            values["flip_vertical"] = bool(getattr(crop, "flipVertical", False))
             values["cropped"] = bool(getattr(crop, "isCropSet", False))
             values["four_corner_corrected"] = viewer.hasFourCornerCorrection()
             values["stabilized"] = bool(getattr(thread, "stabilizationEnabled", False))
@@ -2503,6 +2514,7 @@ class MainWindow(QMainWindow):
                     try:
                         from PySide6.QtWidgets import QMessageBox
                         from product_brand import GW_RELEASE
+
                         QMessageBox.information(
                             self,
                             "光为 OCR",
@@ -2542,8 +2554,13 @@ class MainWindow(QMainWindow):
             )
         )
         about_dialog.ui.label_version.setText(
-            ("{app}  v{version}" + chr(10) + "Based on {upstream} ({license})" + chr(10) + "{url}")
-            .format(
+            (
+                "{app}  v{version}"
+                + chr(10)
+                + "Based on {upstream} ({license})"
+                + chr(10)
+                + "{url}"
+            ).format(
                 app=APP_DISPLAY_NAME,
                 version=__version__,
                 upstream=UPSTREAM_NAME,
@@ -2552,7 +2569,6 @@ class MainWindow(QMainWindow):
             )
         )
         return about_dialog
-
 
     def openAboutDialog(self):
         about_dialog = self.createAboutDialog()
@@ -2644,7 +2660,6 @@ class MainWindow(QMainWindow):
         self.readingDelegate.setPaused(paused)
         self.ui.tableWidget_boxes.viewport().update()
 
-
     def applyGuangweiSimpleOutputUi(self):
         """光为 OCR Output tab: hide the destinations switch list and the
         Folder picker row; keep writing results.json under Desktop\\光为OCR输出.
@@ -2667,7 +2682,10 @@ class MainWindow(QMainWindow):
             if hasattr(self.ui, "widget_5"):
                 self.ui.widget_5.hide()
             # File/JSON must stay on so vMix keeps getting results.json
-            if hasattr(self.ui, "checkBox_saveJson") and not self.ui.checkBox_saveJson.isChecked():
+            if (
+                hasattr(self.ui, "checkBox_saveJson")
+                and not self.ui.checkBox_saveJson.isChecked()
+            ):
                 self.ui.checkBox_saveJson.setChecked(True)
             self.ensureGuangweiOutputFolder()
             self.ensureGuangweiClockZeroLatency()
@@ -2679,7 +2697,6 @@ class MainWindow(QMainWindow):
                 pass
         except Exception:
             logger.exception("applyGuangweiSimpleOutputUi failed")
-
 
     def ensureGuangweiClockZeroLatency(self) -> None:
         """Force 比赛时间 / 24秒 (and any Time box) to LED stack=0 / stable=0.
@@ -2704,7 +2721,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 logger.exception("could not persist clock zero-latency settings")
             logger.info("光为 OCR: clock/shot-clock LED hold cleared (0 / 0ms)")
-
 
     def ensureGuangweiOutputFolder(self) -> str | None:
         """Force out_folder to Desktop\\光为OCR输出 and persist it."""
@@ -2808,9 +2824,10 @@ class MainWindow(QMainWindow):
             btn.setProperty("fieldName", name)
         name = str(btn.property("fieldName") or "")
         btn.setText(self._selectBoxButtonLabel())
-        table = self.ui.tableWidget_boxes
         name_item = self.boxNameItem(name) if name else None
-        role = name_item.data(Qt.ItemDataRole.UserRole) if name_item is not None else None
+        role = (
+            name_item.data(Qt.ItemDataRole.UserRole) if name_item is not None else None
+        )
         zh = str(self.currentLocale() or "").lower().startswith("zh")
         is_template = role == TEMPLATE
         btn.setEnabled(not is_template and self.ui.groupBox_sb_info.isEnabled())
@@ -2854,7 +2871,10 @@ class MainWindow(QMainWindow):
             )
         elif role == NOT_PLACED:
             msg = (
-                ("\u5df2\u9009\u300c%s\u300d\uff1a\u8bf7\u5728\u4e2d\u95f4\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df\u3002" % name)
+                (
+                    "\u5df2\u9009\u300c%s\u300d\uff1a\u8bf7\u5728\u4e2d\u95f4\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df\u3002"
+                    % name
+                )
                 if zh
                 else QCoreApplication.translate(
                     "MainWindow",
@@ -2866,7 +2886,10 @@ class MainWindow(QMainWindow):
                 viewer.setPlacementField(name)
         else:
             msg = (
-                ("\u5df2\u9009\u300c%s\u300d\uff1a\u53ef\u62d6\u73b0\u6709\u6846\u79fb\u52a8\uff1b\u6309\u4f4f Alt \u518d\u62d6\u53ef\u91cd\u753b\u6846\u3002" % name)
+                (
+                    "\u5df2\u9009\u300c%s\u300d\uff1a\u53ef\u62d6\u73b0\u6709\u6846\u79fb\u52a8\uff1b\u6309\u4f4f Alt \u518d\u62d6\u53ef\u91cd\u753b\u6846\u3002"
+                    % name
+                )
                 if zh
                 else QCoreApplication.translate(
                     "MainWindow",
@@ -4430,6 +4453,7 @@ class MainWindow(QMainWindow):
         """The viewer column's texts that are made at runtime."""
         self.updateSourceBar()
         self.updateRotateText()
+        self.updateFlipButtons()
         self.updateZoomReadout()
         self.updateFourCornerUi()
         self.autoLayoutUi.applyTexts()
@@ -4445,7 +4469,9 @@ class MainWindow(QMainWindow):
                 self.ui.label_firstRunBoxesHint.setText(
                     "先点工具栏「四角」拉正画面，再选字段并在画面上拖框。"
                 )
-                self.ui.label_firstRunOutputs.setText("③ 勾选 JSON，一键复制路径给 vMix")
+                self.ui.label_firstRunOutputs.setText(
+                    "③ 勾选 JSON，一键复制路径给 vMix"
+                )
                 self.ui.label_firstRunOutputsHint.setText(
                     "出站 → 文本文件：勾选「给 vMix 的 JSON」，点「一键复制 JSON 路径」，到 vMix Data Sources → + → JSON 粘贴；Update 建议 100 毫秒（填 1000 会一秒一跳）"
                 )
@@ -4463,10 +4489,14 @@ class MainWindow(QMainWindow):
             if getattr(self, "vmixOutboundGuide", None) is not None:
                 self.vmixOutboundGuide.apply_texts(zh)
                 self.vmixOutboundGuide.refresh(self.fileOutput.status())
-            if getattr(self, "vmixUiHandler", None) is not None and hasattr(self.vmixUiHandler, "apply_vmix_guide_texts"):
+            if getattr(self, "vmixUiHandler", None) is not None and hasattr(
+                self.vmixUiHandler, "apply_vmix_guide_texts"
+            ):
                 self.vmixUiHandler.apply_vmix_guide_texts(zh)
             elif zh:
-                self.ui.checkBox_saveJson.setText("给 vMix 的 JSON（推荐）· results.json")
+                self.ui.checkBox_saveJson.setText(
+                    "给 vMix 的 JSON（推荐）· results.json"
+                )
                 self.ui.checkBox_savePerBoxTxt.setText("每个字段单独 .txt（不推荐）")
         except Exception:
             pass
@@ -4783,6 +4813,27 @@ class MainWindow(QMainWindow):
         if rotation is None:
             rotation = fetch_data("scoresight.json", "rotation", 0)
         self.ui.toolButton_rotate.setText(source_bar.rotate_text(rotation))
+
+    def toggleFlipHorizontal(self):
+        """Mirror left to right. The preview, the boxes and the OCR share it."""
+        self.globalSettingsChanged(
+            "flip_horizontal", self.ui.toolButton_flipHorizontal.isChecked()
+        )
+
+    def toggleFlipVertical(self):
+        """Mirror top to bottom. The preview, the boxes and the OCR share it."""
+        self.globalSettingsChanged(
+            "flip_vertical", self.ui.toolButton_flipVertical.isChecked()
+        )
+
+    def updateFlipButtons(self):
+        """The mirror buttons follow the saved settings (also after a language
+        change, which doesn't clear them)."""
+        for button, key in (
+            (self.ui.toolButton_flipHorizontal, "flip_horizontal"),
+            (self.ui.toolButton_flipVertical, "flip_vertical"),
+        ):
+            button.setChecked(bool(fetch_data("scoresight.json", key, False)))
 
     def fourCornerClicked(self):
         """4-corner never removes a correction silently: with one in place it

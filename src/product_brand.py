@@ -46,8 +46,7 @@ QQ_GROUP_OPEN_URL = (
 )
 # Browser fallback if the mqqapi protocol is not registered.
 QQ_GROUP_WEB_URL = (
-    "https://qm.qq.com/cgi-bin/qm/qr?k=&jump_from=webapi"
-    "&authKey=&group_code=124356408"
+    "https://qm.qq.com/cgi-bin/qm/qr?k=&jump_from=webapi&authKey=&group_code=124356408"
 )
 
 # Folder name under the user's Desktop (ASCII-safe path join; name is Chinese).
