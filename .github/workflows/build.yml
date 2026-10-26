@@ -1,0 +1,578 @@
+# Build, smoke-test and package ScoreSight for every platform. The built app is
+# also run end to end (scripts/ci/e2e_test.py) and its boot time is measured
+# and compared with the 0.1.0 release (scripts/ci/boot_benchmark.py); the
+# results are in the job summary and the ci-results-<target> artifact.
+#
+# Runs on pull requests that change the packaging, on demand (Actions > Build >
+# Run workflow), and from release.yml for release tags. Packages are uploaded as
+# workflow artifacts named after the file they contain:
+#   scoresight-<version>-windows-x64-setup.exe
+#   scoresight-<version>-windows-x64-portable.zip
+#   scoresight-<version>-macos-arm64.dmg
+#   scoresight-<version>-macos-x64.dmg
+#   scoresight-<version>-linux-x64.tar.gz
+# <version> is src/version.py's version, plus "-<short commit>" unless this is a
+# release build. Release builds sign the Windows app, installer and uninstaller
+# (Azure Artifact Signing) and sign and notarize the macOS app when the
+# secrets are configured; every other build (including forks) is unsigned.
+#
+# Windows signing needs the secrets AZURE_TENANT_ID, AZURE_CLIENT_ID and
+# AZURE_CLIENT_SECRET (an app registration with the "Artifact Signing
+# Certificate Profile Signer" role) and the repository variables
+# AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE; see
+# docs/development/releasing.md.
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: Release build (exact version in file names; sign Windows and macOS, and notarize macOS, if the secrets exist)
+        type: boolean
+        default: false
+      debug:
+        description: Windows console build
+        type: boolean
+        default: false
+    secrets:
+      APPLE_CERTIFICATE:
+        description: Base64-encoded Developer ID Application certificate (.p12)
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_APP_DEVELOPER_ID:
+        description: 'Signing identity, e.g. "Developer ID Application: Name (TEAMID)"'
+        required: false
+      APPLE_DEVELOPER_ID_USER:
+        description: Apple ID used for notarization
+        required: false
+      APPLE_DEVELOPER_ID_PASSWORD:
+        description: App-specific password of that Apple ID
+        required: false
+      APPLE_DEVELOPER_ID_TEAM:
+        required: false
+      AZURE_TENANT_ID:
+        description: Microsoft Entra tenant of the app registration that signs the Windows packages
+        required: false
+      AZURE_CLIENT_ID:
+        description: Client ID of that app registration
+        required: false
+      AZURE_CLIENT_SECRET:
+        description: A client secret of that app registration
+        required: false
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Release build (exact version in file names; sign Windows and macOS, and notarize macOS, if the secrets exist)
+        type: boolean
+        default: false
+      debug:
+        description: Windows console build
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - .github/workflows/build.yml
+      - scoresight.spec
+      - scoresight.iss
+      - entitlements.plist
+      - requirements.txt
+      - requirements-win.txt
+      - requirements-mac.txt
+      - requirements-build.txt
+      - scripts/ci/**
+      - scripts/fetch_models.py
+      - ocr_models/**
+      - src/main.py
+      - src/app_update.py
+      - src/resource_path.py
+      - src/version.py
+      - src/win32DeviceEnum/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # legacy-asset: the 0.1.0 release's package for the boot time comparison
+        include:
+          - target: windows-x64
+            runner: windows-latest
+            executable: dist/scoresight/scoresight.exe
+            legacy-asset: scoresight-windows-0.1.0.zip
+          - target: macos-arm64
+            runner: macos-latest
+            executable: dist/ScoreSight.app/Contents/MacOS/scoresight
+            legacy-asset: scoresight-macos-arm64-0.1.0.dmg
+          - target: macos-x64
+            # the last Intel macOS image; GitHub retires it in fall 2027
+            runner: macos-15-intel
+            executable: dist/ScoreSight.app/Contents/MacOS/scoresight
+            legacy-asset: scoresight-macos-x86-0.1.0.dmg
+          - target: linux-x64
+            # The build machine's glibc is the oldest the app runs on: Ubuntu
+            # 22.04 has glibc 2.35 (PySide6 6.12 needs 2.34). The image is
+            # supported until April 2027; move to a manylinux_2_34 container
+            # or ubuntu-24.04 (glibc 2.39) before then.
+            runner: ubuntu-22.04
+            executable: dist/scoresight/scoresight
+            legacy-asset: scoresight-linux-0.1.0.tar
+    env:
+      # Secrets can't be used in `if:` conditions, so decide here.
+      SIGN_MACOS: ${{ inputs.release && startsWith(matrix.target, 'macos-') && secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_APP_DEVELOPER_ID != '' }}
+      # sign_windows.ps1 fails if the rest of the configuration is missing
+      SIGN_WINDOWS: ${{ inputs.release && matrix.target == 'windows-x64' && secrets.AZURE_CLIENT_SECRET != '' && vars.AZURE_SIGNING_ENDPOINT != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install Qt runtime libraries
+        if: runner.os == 'Linux'
+        # What the bundled Qt links against; also needed by the smoke test.
+        # PyInstaller bundles only the libraries it finds here: without the
+        # xcb-util ones (not on the runner image), the app can't start on an
+        # X11 desktop that lacks them ("xcb-cursor0 or libxcb-cursor0 is
+        # needed to load the Qt xcb platform plugin").
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libx11-6 libxkbcommon0 libfontconfig1 libfreetype6 libdbus-1-3 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xkb1 libxkbcommon-x11-0
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          requirements=(-r requirements.txt -r requirements-build.txt)
+          case "$RUNNER_OS" in
+            Windows) requirements+=(-r requirements-win.txt) ;;
+            macOS) requirements+=(-r requirements-mac.txt) ;;
+          esac
+          python -m pip install "${requirements[@]}"
+
+      - name: Cache the PP-OCR models
+        uses: actions/cache@v6
+        with:
+          path: |
+            ocr_models/ppocr/PP-OCRv6_small_rec
+            ocr_models/ppocr/PP-OCRv6_tiny_rec
+          # the script pins every file's revision and SHA-256
+          key: ppocr-models-${{ hashFiles('scripts/fetch_models.py') }}
+
+      - name: Fetch the PP-OCR models
+        # the build bundles them (scoresight.spec fails without them); this
+        # downloads what the cache didn't restore, checks every file's SHA-256
+        # and fails after its retries
+        run: python scripts/fetch_models.py
+
+      - name: Version
+        id: version
+        shell: bash
+        env:
+          RELEASE: ${{ inputs.release }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          args=(--sha "$COMMIT")
+          if [ "$RELEASE" = "true" ]; then args+=(--release); fi
+          python scripts/ci/versioning.py github-output "${args[@]}"
+
+      - name: Build the camera enumerator
+        if: runner.os == 'Windows'
+        working-directory: src/win32DeviceEnum
+        run: python setup.py build_ext --inplace
+
+      - name: Import the Apple signing certificate
+        if: env.SIGN_MACOS == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          certificate="$RUNNER_TEMP/certificate.p12"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -t cert -f pkcs12 -T /usr/bin/codesign -T /usr/bin/security
+          rm "$certificate"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          # put the build keychain first in the search list (one path per word)
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: Build with PyInstaller
+        shell: bash
+        env:
+          # the spec signs with this identity when it is set (ad-hoc otherwise)
+          APPLE_APP_DEVELOPER_ID: ${{ env.SIGN_MACOS == 'true' && secrets.APPLE_APP_DEVELOPER_ID || '' }}
+          DEBUG_BUILD: ${{ inputs.debug && runner.os == 'Windows' }}
+        run: |
+          spec_args=()
+          if [ "$DEBUG_BUILD" = "true" ]; then spec_args+=(-- --debug); fi
+          python -m PyInstaller --clean --noconfirm scoresight.spec "${spec_args[@]}"
+
+      - name: Sign the app (Windows)
+        # before the tests, so they run the signed app; the installer and the
+        # portable zip contain it
+        if: env.SIGN_WINDOWS == 'true'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: ./scripts/ci/sign_windows.ps1 dist/scoresight/scoresight.exe
+
+      - name: Unsigned Windows release
+        if: inputs.release && runner.os == 'Windows' && env.SIGN_WINDOWS != 'true'
+        run: echo "::warning::The Windows app and installer are not signed. Signing needs the AZURE_* secrets and variables (docs/development/releasing.md)."
+
+      - name: Smoke test (--self-test)
+        shell: bash
+        env:
+          EXECUTABLE: ${{ matrix.executable }}
+        run: python scripts/ci/smoke_test.py "$EXECUTABLE"
+
+      - name: End-to-end test
+        # the built app, headless, reading a synthetic scoreboard video: the
+        # readings must reach the HTTP server, the files and the outbound API
+        timeout-minutes: 10
+        shell: bash
+        env:
+          EXECUTABLE: ${{ matrix.executable }}
+          TARGET: ${{ matrix.target }}
+        run: >
+          python scripts/ci/e2e_test.py --label "$TARGET"
+          --json "$RUNNER_TEMP/results/e2e-$TARGET.json" --work-dir "$RUNNER_TEMP/e2e"
+          -- "$EXECUTABLE"
+
+      - name: End-to-end test (Tesseract)
+        # the same with a Tesseract model, which new setups no longer default to
+        timeout-minutes: 10
+        shell: bash
+        env:
+          EXECUTABLE: ${{ matrix.executable }}
+          TARGET: ${{ matrix.target }}
+        run: >
+          python scripts/ci/e2e_test.py --engine tesseract --label "$TARGET"
+          --json "$RUNNER_TEMP/results/e2e-$TARGET-tesseract.json"
+          --work-dir "$RUNNER_TEMP/e2e-tesseract"
+          -- "$EXECUTABLE"
+
+      - name: Boot time
+        id: boot
+        # Fails only on a gross regression. The limits are for GitHub-hosted
+        # runners, much slower than a desktop (a Windows desktop: cold 0.7 s,
+        # warm 0.6 s); 0.1.x took 30 s to a minute on macOS (#33). The steps
+        # above already started the app, so "cold" is the first start with
+        # fresh settings, not the first launch of the binary.
+        timeout-minutes: 15
+        shell: bash
+        env:
+          EXECUTABLE: ${{ matrix.executable }}
+          TARGET: ${{ matrix.target }}
+        run: >
+          python scripts/ci/boot_benchmark.py --runs 5 --label "$TARGET: this build"
+          --json "$RUNNER_TEMP/results/boot-$TARGET.json"
+          --max-cold-seconds 60 --max-warm-seconds 20
+          -- "$EXECUTABLE"
+
+      # 0.1.0, the last release before the rewrite, for comparison. These steps
+      # never fail the build: the old app may misbehave headless on a runner.
+      - name: Get ScoreSight 0.1.0 (Windows)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ASSET: ${{ matrix.legacy-asset }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "scoresight-0.1.0"
+          gh release download 0.1.0 --repo $env:REPOSITORY --pattern $env:ASSET --dir $dir
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Expand-Archive -Path (Join-Path $dir $env:ASSET) -DestinationPath $dir
+          # the zip holds the 0.1.0 installer: install the app into a folder
+          $install = Start-Process (Join-Path $dir "scoresight-setup.exe") -Wait -PassThru -ArgumentList @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/NOICONS", "/DIR=`"$dir\app`"")
+          if ($install.ExitCode -ne 0) { throw "0.1.0 installer exit code $($install.ExitCode)" }
+          if (-not (Test-Path "$dir\app\scoresight.exe")) { throw "no $dir\app\scoresight.exe" }
+          Add-Content -Path $env:GITHUB_ENV -Value "LEGACY_EXECUTABLE=$dir\app\scoresight.exe"
+
+      - name: Get ScoreSight 0.1.0 (macOS, Linux)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ASSET: ${{ matrix.legacy-asset }}
+        run: |
+          dir="$RUNNER_TEMP/scoresight-0.1.0"
+          gh release download 0.1.0 --repo "$REPOSITORY" --pattern "$ASSET" --dir "$dir"
+          # 0.1.0 is a one-file build (in scoresight.app on macOS)
+          if [ "$RUNNER_OS" = macOS ]; then
+            mkdir -p "$dir/volume"
+            hdiutil attach -nobrowse -readonly -mountpoint "$dir/volume" "$dir/$ASSET"
+            executable=$(find "$dir/volume" -path '*/Contents/MacOS/scoresight' -type f | head -n 1)
+          else
+            tar -xf "$dir/$ASSET" -C "$dir"
+            executable=$(find "$dir" -name scoresight -type f -perm -u+x | head -n 1)
+          fi
+          if [ -z "$executable" ]; then
+            echo "::warning::no scoresight executable in $ASSET"
+            exit 1
+          fi
+          echo "LEGACY_EXECUTABLE=$executable" >> "$GITHUB_ENV"
+
+      - name: Boot time of 0.1.0
+        if: env.LEGACY_EXECUTABLE != ''
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: >
+          python scripts/ci/boot_benchmark.py --legacy --runs 3 --timeout 180
+          --label "$TARGET: 0.1.0" --json "$RUNNER_TEMP/results/boot-$TARGET-0.1.0.json"
+          -- "$LEGACY_EXECUTABLE"
+
+      - name: Eject the 0.1.0 disk image
+        # before the packaging step creates a disk image of its own
+        if: always() && runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          volume="$RUNNER_TEMP/scoresight-0.1.0/volume"
+          if mount | grep -qF " on $volume "; then
+            hdiutil detach "$volume" || hdiutil detach -force "$volume"
+          fi
+
+      - name: Boot time comparison
+        if: always() && steps.boot.outcome != 'skipped'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: >
+          python scripts/ci/boot_benchmark.py --compare
+          "$RUNNER_TEMP/results/boot-$TARGET.json"
+          "$RUNNER_TEMP/results/boot-$TARGET-0.1.0.json"
+
+      - name: Upload the test and benchmark results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          # not "scoresight-*": release.yml publishes those artifacts
+          name: ci-results-${{ matrix.target }}
+          path: ${{ runner.temp }}/results
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.release && 30 || 7 }}
+
+      - name: Notarize the app
+        if: env.SIGN_MACOS == 'true'
+        env:
+          APPLE_DEVELOPER_ID_USER: ${{ secrets.APPLE_DEVELOPER_ID_USER }}
+          APPLE_DEVELOPER_ID_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_PASSWORD }}
+          APPLE_DEVELOPER_ID_TEAM: ${{ secrets.APPLE_DEVELOPER_ID_TEAM }}
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/ScoreSight.app
+          ditto -c -k --keepParent dist/ScoreSight.app "$RUNNER_TEMP/ScoreSight.zip"
+          bash scripts/ci/notarize_macos.sh "$RUNNER_TEMP/ScoreSight.zip"
+          bash scripts/ci/staple_macos.sh dist/ScoreSight.app
+          spctl --assess --type execute --verbose=2 dist/ScoreSight.app
+
+      - name: Package (macOS disk image)
+        if: runner.os == 'macOS'
+        env:
+          DMG: dist/scoresight-${{ steps.version.outputs.label }}-${{ matrix.target }}.dmg
+        run: |
+          staging="$RUNNER_TEMP/dmg"
+          mkdir -p "$staging"
+          ditto dist/ScoreSight.app "$staging/ScoreSight.app"
+          ln -s /Applications "$staging/Applications"
+          # hdiutil sometimes fails with "Resource busy" on hosted runners
+          for attempt in 1 2 3; do
+            if hdiutil create -volname ScoreSight -srcfolder "$staging" -fs HFS+ \
+                -format UDZO -ov "$DMG"; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep 10
+          done
+
+      - name: Sign and notarize the disk image
+        if: env.SIGN_MACOS == 'true'
+        env:
+          DMG: dist/scoresight-${{ steps.version.outputs.label }}-${{ matrix.target }}.dmg
+          APPLE_APP_DEVELOPER_ID: ${{ secrets.APPLE_APP_DEVELOPER_ID }}
+          APPLE_DEVELOPER_ID_USER: ${{ secrets.APPLE_DEVELOPER_ID_USER }}
+          APPLE_DEVELOPER_ID_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_PASSWORD }}
+          APPLE_DEVELOPER_ID_TEAM: ${{ secrets.APPLE_DEVELOPER_ID_TEAM }}
+        run: |
+          codesign --sign "$APPLE_APP_DEVELOPER_ID" --timestamp "$DMG"
+          bash scripts/ci/notarize_macos.sh "$DMG"
+          bash scripts/ci/staple_macos.sh "$DMG"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
+
+      - name: Remove the signing keychain
+        if: always() && env.SIGN_MACOS == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+
+      - name: Package (Windows installer)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LABEL: ${{ steps.version.outputs.label }}
+          NUMERIC: ${{ steps.version.outputs.numeric }}
+          # for sign_windows.ps1, which Inno Setup runs
+          AZURE_TENANT_ID: ${{ env.SIGN_WINDOWS == 'true' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ env.SIGN_WINDOWS == 'true' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ env.SIGN_WINDOWS == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          # Inno Setup 6 is on GitHub's Windows images. ISCC runs here rather
+          # than in a third-party action, which would see the signing secret.
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "Inno Setup is not installed: no $iscc" }
+          $options = @("/O+", "/DAppVersion=$env:LABEL", "/DAppVersionNumeric=$env:NUMERIC")
+          if ($env:SIGN_WINDOWS -eq "true") {
+            # Inno Setup signs Setup and the uninstaller with this command
+            # ($q: a quote, $f: the quoted file)
+            $script = "$env:GITHUB_WORKSPACE\scripts\ci\sign_windows.ps1"
+            $options += "/DSignTool=artifactsigning"
+            $options += "/Sartifactsigning=pwsh -NoProfile -NonInteractive -File `$q$script`$q `$f"
+          }
+          & $iscc @options scoresight.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package (Windows portable zip) and test the installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LABEL: ${{ steps.version.outputs.label }}
+        run: |
+          $setup = "dist\scoresight-$env:LABEL-windows-x64-setup.exe"
+          if (-not (Test-Path $setup)) { throw "Inno Setup did not produce $setup" }
+          $setup = (Resolve-Path $setup).Path
+          Compress-Archive -Path dist\scoresight -DestinationPath "dist\scoresight-$env:LABEL-windows-x64-portable.zip"
+
+          # install for the current user, run the installed app's self-test,
+          # then uninstall and check that the files are gone
+          $app = Join-Path $env:RUNNER_TEMP "ScoreSight"
+          $install = Start-Process $setup -Wait -PassThru -ArgumentList @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/DIR=`"$app`"")
+          if ($install.ExitCode -ne 0) { throw "installer exit code $($install.ExitCode)" }
+          if ($env:SIGN_WINDOWS -eq "true") {
+            # the installer, the installed app and its uninstaller are signed
+            foreach ($file in $setup, "$app\scoresight.exe", "$app\unins000.exe") {
+              $signature = Get-AuthenticodeSignature -LiteralPath $file
+              if ($signature.Status -ne "Valid") { throw "$file is not signed: $($signature.StatusMessage)" }
+              Write-Host "$file is signed by $($signature.SignerCertificate.Subject)"
+            }
+          }
+          python scripts/ci/smoke_test.py "$app\scoresight.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $uninstall = Start-Process "$app\unins000.exe" -Wait -PassThru -ArgumentList @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
+          if ($uninstall.ExitCode -ne 0) { throw "uninstaller exit code $($uninstall.ExitCode)" }
+          # the uninstaller finishes from a temporary copy of itself
+          for ($i = 0; $i -lt 60 -and (Test-Path "$app\scoresight.exe"); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path "$app\scoresight.exe") { throw "the uninstaller left $app\scoresight.exe behind" }
+
+      - name: Test Update now (the installer run as an update)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LABEL: ${{ steps.version.outputs.label }}
+        # Setup writes the ready file, waits for the app's mutex, installs and
+        # starts the app again with its environment (src/app_update.py)
+        run: python scripts/ci/update_test.py "dist\scoresight-$env:LABEL-windows-x64-setup.exe"
+
+      - name: Package (Linux archive)
+        if: runner.os == 'Linux'
+        env:
+          LABEL: ${{ steps.version.outputs.label }}
+        run: tar -czf "dist/scoresight-$LABEL-linux-x64.tar.gz" -C dist scoresight
+
+      - name: Summary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          {
+            echo "### $TARGET packages"
+            echo
+            echo "| File | Size |"
+            echo "|---|---|"
+            for f in dist/scoresight-*; do
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: scoresight-${{ steps.version.outputs.label }}-windows-x64-setup.exe
+          path: dist/scoresight-${{ steps.version.outputs.label }}-windows-x64-setup.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: ${{ inputs.release && 30 || 7 }}
+
+      - name: Upload the portable zip
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: scoresight-${{ steps.version.outputs.label }}-windows-x64-portable.zip
+          path: dist/scoresight-${{ steps.version.outputs.label }}-windows-x64-portable.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: ${{ inputs.release && 30 || 7 }}
+
+      - name: Upload the disk image
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: scoresight-${{ steps.version.outputs.label }}-${{ matrix.target }}.dmg
+          path: dist/scoresight-${{ steps.version.outputs.label }}-${{ matrix.target }}.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: ${{ inputs.release && 30 || 7 }}
+
+      - name: Upload the archive
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: scoresight-${{ steps.version.outputs.label }}-linux-x64.tar.gz
+          path: dist/scoresight-${{ steps.version.outputs.label }}-linux-x64.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: ${{ inputs.release && 30 || 7 }}

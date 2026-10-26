@@ -1,0 +1,168 @@
+# Windows portable build for 光为 OCR / GuangWei OCR.
+#
+# This workflow is a skeleton. It does not sign anything.
+#
+# scoresight.spec (PyInstaller) exits if a data glob matches nothing. This
+# repository does not contain:
+#   tesseract/tessdata/*.traineddata
+#   ocr_models/ppocr/PP-OCRv6_{small,tiny}_rec/{inference.onnx,characters.txt,config.json}
+# PP-OCR weights can be fetched with scripts/fetch_models.py once Tesseract
+# traineddata is present. Until then the job records the gap and does not
+# run PyInstaller.
+#
+# The SignPath step at the bottom is commented out on purpose. Uncommenting
+# it does not create a signature. SignPath Foundation has not approved this
+# project. See docs/code-signing-policy.md and docs/SIGNPATH_APPLICATION.md.
+#
+# The unsigned zip users download today is GuangWeiOCR-Portable.zip on
+# https://ocr.4018.cn/ . That file was packaged outside this workflow.
+
+name: Windows portable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  portable:
+    name: Windows portable (unsigned skeleton)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt -r requirements-win.txt -r requirements-build.txt
+
+      - name: Detect Tesseract traineddata
+        id: tessdata
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem -Path "tesseract/tessdata" -Filter "*.traineddata" -ErrorAction SilentlyContinue)
+          if ($files.Count -gt 0) {
+            "present=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Found $($files.Count) .traineddata file(s)."
+          } else {
+            "present=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::notice::tesseract/tessdata/*.traineddata is not in this tree. PyInstaller will not run."
+          }
+
+      - name: Fetch the PP-OCR models
+        if: steps.tessdata.outputs.present == 'true'
+        run: python scripts/fetch_models.py
+
+      - name: Decide whether PyInstaller can run
+        id: package
+        shell: pwsh
+        run: |
+          $missing = @()
+          if ("${{ steps.tessdata.outputs.present }}" -ne "true") {
+            $missing += "tesseract/tessdata/*.traineddata"
+          }
+          $required = @(
+            "ocr_models/ppocr/LICENSE",
+            "ocr_models/ppocr/NOTICE",
+            "ocr_models/ppocr/PP-OCRv6_small_rec/inference.onnx",
+            "ocr_models/ppocr/PP-OCRv6_small_rec/characters.txt",
+            "ocr_models/ppocr/PP-OCRv6_small_rec/config.json",
+            "ocr_models/ppocr/PP-OCRv6_tiny_rec/inference.onnx",
+            "ocr_models/ppocr/PP-OCRv6_tiny_rec/characters.txt",
+            "ocr_models/ppocr/PP-OCRv6_tiny_rec/config.json"
+          )
+          foreach ($rel in $required) {
+            if (-not (Test-Path -LiteralPath $rel)) { $missing += $rel }
+          }
+          if ($missing.Count -gt 0) {
+            "ready=false" >> $env:GITHUB_OUTPUT
+            $missing | ForEach-Object { Write-Host "::notice::missing $_" }
+            $lines = @(
+              "## Windows portable skeleton",
+              "",
+              "PyInstaller did not run. scoresight.spec needs files this checkout does not have:",
+              ""
+            ) + @($missing | ForEach-Object { "- $_" }) + @(
+              "",
+              "Copy tesseract/tessdata/*.traineddata from a ScoreSight packaging checkout. PP-OCR weights come from python scripts/fetch_models.py and are not stored in git. See the README.",
+              "",
+              "Signing did not run. The SignPath step in this workflow is commented out. There is no SignPath project for this repository yet. This job does not produce an Authenticode signature, and it is not the unsigned GuangWeiOCR-Portable.zip already published at https://ocr.4018.cn/ ."
+            )
+            $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          } else {
+            "ready=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Build the camera enumerator
+        if: steps.package.outputs.ready == 'true'
+        working-directory: src/win32DeviceEnum
+        run: python setup.py build_ext --inplace
+
+      - name: Build with PyInstaller
+        if: steps.package.outputs.ready == 'true'
+        run: python -m PyInstaller --clean --noconfirm scoresight.spec
+
+      - name: Zip the onedir folder (unsigned)
+        if: steps.package.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/scoresight/scoresight.exe")) {
+            throw "PyInstaller did not produce dist/scoresight/scoresight.exe"
+          }
+          # Spec output is dist/scoresight/scoresight.exe. The download site
+          # ships GuangWeiOCR.exe inside GuangWeiOCR-Portable.zip. This zip
+          # keeps the spec layout. It is unsigned.
+          Compress-Archive -Path dist/scoresight -DestinationPath dist/scoresight-windows-x64-portable-unsigned.zip
+
+      - name: Upload unsigned portable zip
+        id: upload-unsigned-artifact
+        if: steps.package.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: scoresight-windows-x64-portable-unsigned
+          path: dist/scoresight-windows-x64-portable-unsigned.zip
+          if-no-files-found: error
+
+      - name: Signing is not configured
+        if: always()
+        shell: pwsh
+        run: |
+          @(
+            "",
+            "## Signing",
+            "",
+            "SignPath was not called. No Authenticode signature was produced.",
+            "The commented step in .github/workflows/windows-portable.yml is documentation only."
+          ) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host "SignPath signing is not configured and did not run."
+
+      # SignPath Foundation — DO NOT ENABLE.
+      # Signing does not work until all of the following exist, and even then
+      # an approver must accept the request in the SignPath UI:
+      #   1. SignPath has approved https://github.com/liuchixiangai/ocr
+      #   2. Organization id, project slug, and signing-policy slug are real
+      #   3. SIGNPATH_API_TOKEN is a repository secret (never commit it)
+      #   4. SIGNPATH_ORGANIZATION_ID is a repository variable
+      #   5. The artifact uploaded above is from this GitHub-hosted run
+      #   6. docs/code-signing-policy.md is still the policy the approver follows
+      #
+      # Action reference (commented, not executed):
+      # https://docs.signpath.io/trusted-build-systems/github
+      #
+      # - name: Submit signing request to SignPath
+      #   uses: signpath/github-action-submit-signing-request@v3
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      #     project-slug: guangwei-ocr
+      #     signing-policy-slug: release-signing
+      #     github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+      #     wait-for-completion: true
+      #     output-artifact-directory: ${{ runner.temp }}/signed

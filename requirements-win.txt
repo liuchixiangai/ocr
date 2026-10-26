@@ -1,0 +1,6 @@
+# Windows-only runtime extras. Install together with requirements.txt.
+pywin32==312
+# tesserocr 2.10.0 bundling Tesseract 5.5.2 (simonflueckiger/tesserocr-windows_build).
+# PyPI has no Windows wheels for tesserocr, and the 2.11.0 Windows builds only bundle Tesseract 4.
+tesserocr @ https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.10.0-tesseract-5.5.2/tesserocr-2.10.0-cp313-cp313-win_amd64.whl#sha256=a7f1a56f2c70095d108304e2e76fd6aebd06a42712cb87b8976d52d1e7faf6d8 ; sys_platform == "win32" and platform_machine == "AMD64" and python_version == "3.13"
+tesserocr @ https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.10.0-tesseract-5.5.2/tesserocr-2.10.0-cp314-cp314-win_amd64.whl#sha256=e7abf40539b852bd25cceadad7a1a3bba9c223556bafa908e2dbf91407080af5 ; sys_platform == "win32" and platform_machine == "AMD64" and python_version == "3.14"

@@ -1,0 +1,44 @@
+# Announce a published release in Discussions: GitHub starts the release's
+# discussion in the Announcements category, with the release notes, and links
+# it from the release page ("Join discussion"). A release that already has its
+# discussion keeps it, so running this again changes nothing.
+#
+# Runs when a release is published (release.yml only drafts them), or by hand
+# for a release that was published before: Actions > Announce release > Run
+# workflow, with its tag.
+name: Announce release
+run-name: Announce ${{ github.event.release.tag_name || inputs.tag }}
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The published release's tag, e.g. 0.3.3
+        required: true
+
+permissions:
+  contents: write
+  discussions: write
+
+jobs:
+  announce:
+    name: Start the release's discussion
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      CATEGORY: Announcements
+    steps:
+      - name: Start the discussion in ${{ env.CATEGORY }}
+        run: |
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .id)
+          url=$(gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release" \
+            -f discussion_category_name="$CATEGORY" --jq '.discussion_url // ""')
+          if [ -z "$url" ]; then
+            echo "::error::No discussion was started for $TAG (is there a \"$CATEGORY\" category in Discussions?)"
+            exit 1
+          fi
+          echo "Discussion: $url" | tee -a "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,32 @@
+﻿__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+ocr_eval/
+
+# PP-OCR weights downloaded by scripts/fetch_models.py (not in git).
+# The Apache-2.0 LICENSE and NOTICE in this folder stay tracked.
+ocr_models/ppocr/*
+!ocr_models/ppocr/LICENSE
+!ocr_models/ppocr/NOTICE
+
+# Tesseract .traineddata is not part of this initial tree.
+# Copy tesseract/tessdata from a ScoreSight checkout used for local packaging.
+tesseract/
+
+# Signing material and local secrets. Never commit these.
+*.pfx
+*.p12
+*.pem
+.env
+.env.*
+HookSigntool*

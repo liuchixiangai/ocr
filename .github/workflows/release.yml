@@ -1,0 +1,125 @@
+# Build and draft a GitHub release for a version tag: X.Y.Z, X.Y.Z-beta.N or
+# X.Y.Z-rc.N (no "v" prefix). Prepare the tag with scripts/bump_version.py.
+#
+# The tag must equal src/version.py's __version__ and CHANGELOG.md must have a
+# "## [X.Y.Z]" section; that section becomes the release notes. The release is
+# created as a DRAFT (marked pre-release for beta/rc tags) with all packages and
+# SHA256SUMS.txt attached; publish it by hand after QA. Publishing it starts its
+# discussion in Announcements (announce-release.yml).
+name: Release
+run-name: Release ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify tag and changelog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Tag matches src/version.py
+        run: python scripts/ci/versioning.py check-tag "$GITHUB_REF_NAME"
+
+      - name: Version
+        id: version
+        run: python scripts/ci/versioning.py github-output --release
+
+      - name: CHANGELOG.md has release notes for this version
+        run: python scripts/ci/versioning.py changelog "$GITHUB_REF_NAME"
+
+  build:
+    name: Build
+    needs: verify
+    uses: ./.github/workflows/build.yml
+    with:
+      release: true
+    secrets: inherit
+
+  publish:
+    name: Draft the GitHub release
+    needs: [verify, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Download the packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: scoresight-*
+          merge-multiple: true
+          path: dist
+
+      - name: Check the packages and write SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          expected=(
+            "scoresight-$VERSION-windows-x64-setup.exe"
+            "scoresight-$VERSION-windows-x64-portable.zip"
+            "scoresight-$VERSION-macos-arm64.dmg"
+            "scoresight-$VERSION-macos-x64.dmg"
+            "scoresight-$VERSION-linux-x64.tar.gz"
+          )
+          ls -l
+          for file in "${expected[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::$file is missing"
+              exit 1
+            fi
+          done
+          sha256sum "${expected[@]}" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Release notes
+        # this version's CHANGELOG section, then the downloads table and the
+        # invitation to Discussions
+        run: |
+          python scripts/ci/versioning.py changelog "$VERSION" > release-notes.md
+          cat .github/release-notes-footer.md >> release-notes.md
+          cat release-notes.md
+
+      - name: Create the draft release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ScoreSight ${{ needs.verify.outputs.version }}
+          body_path: release-notes.md
+          draft: true
+          prerelease: ${{ needs.verify.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/scoresight-*
+            dist/SHA256SUMS.txt
