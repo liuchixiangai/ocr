@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <dshow.h>
+#include <stdexcept>
 #include <string>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -67,7 +68,14 @@ PYBIND11_MODULE(win32DeviceEnumBind, m) {
     m.def("UninitializeCOM", &UninitializeCOM, "A function that uninitializes COM");
     m.def("EnumerateVideoDevicesDShow", []() {
         std::vector<std::wstring> deviceNames;
-        EnumerateVideoDevicesDShow(deviceNames);
+        // rc < 0: CoCreateInstance / CreateClassEnumerator failed. Returning
+        // the cleared name list made a COM error look like "no camera".
+        // S_FALSE (no video input device) is rc 0 and an empty list.
+        int rc = EnumerateVideoDevicesDShow(deviceNames);
+        if (rc < 0) {
+            throw std::runtime_error(
+                "DirectShow video device enumeration failed");
+        }
         return deviceNames;
     }, "A function that enumerates video devices");
 }

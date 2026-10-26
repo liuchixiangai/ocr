@@ -8,7 +8,12 @@ _EXTENSION_DIR = path.abspath(path.dirname(__file__))
 
 def enumerate_video_devices_dshow() -> list[tuple[int, str]]:
     """The DirectShow video input devices as (index, name), in DirectShow
-    enumeration order, which OpenCV's camera indices follow."""
+    enumeration order, which OpenCV's camera indices follow.
+
+    A COM failure raises RuntimeError. An empty list means the search
+    succeeded and Windows reported no video input device. A missing
+    win32DeviceEnumBind raises ImportError. Neither failure is an empty list.
+    """
     if _EXTENSION_DIR not in sys.path:
         sys.path.append(_EXTENSION_DIR)
     import win32DeviceEnumBind

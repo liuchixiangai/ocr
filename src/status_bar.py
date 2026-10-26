@@ -162,6 +162,11 @@ class StatusSnapshot:
     # (time.monotonic) they were taken
     outputs: tuple[DestinationStatus, ...] = ()
     now: float = 0.0
+    # why the camera list is empty or the search failed ("" when a device
+    # was found, or the search has not finished). Shown instead of "No source"
+    # only while nothing is open.
+    device_enum_headline: str = ""
+    device_enum_detail: str = ""
 
 
 def primary_lan_address() -> str | None:
@@ -238,6 +243,10 @@ def _elide_middle(text: str, limit: int = 48) -> str:
 def source_text(snapshot: StatusSnapshot) -> str:
     """The source part, as plain text."""
     state = snapshot.source_state
+    if (state == SOURCE_NONE or not snapshot.source_name) and (
+        snapshot.device_enum_headline
+    ):
+        return snapshot.device_enum_headline
     if state == SOURCE_NONE or not snapshot.source_name:
         return QCoreApplication.translate("StatusBar", "No source")
     name = _elide_middle(snapshot.source_name)
@@ -672,6 +681,10 @@ class MainStatusBar(QObject):
         adjustments = adjustments_text(snapshot)
         if adjustments:
             tooltip += "\n" + adjustments
+        if snapshot.device_enum_headline and snapshot.source_name:
+            tooltip += "\n" + snapshot.device_enum_headline
+        if snapshot.device_enum_detail:
+            tooltip += "\n" + snapshot.device_enum_detail
         self.label_source.setToolTip(tooltip)
 
         text = ocr_text(snapshot)

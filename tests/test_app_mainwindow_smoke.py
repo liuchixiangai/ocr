@@ -4104,6 +4104,133 @@ def test_the_first_run_card_lists_the_cameras(make_window, patched, no_dialogs):
     assert not window.ui.frame_firstRun.isVisibleTo(window)
 
 
+def test_an_empty_camera_search_shows_what_to_try(make_window):
+    # The search finished and found nothing: not a failure.
+    window = make_window()
+    assert window.device_enum_state == "empty"
+    text = window.label_deviceEnumNotice.text()
+    assert text.startswith("No camera found")
+    assert "Device Manager" in text
+    assert "F5" in text
+    assert "screenshot" in text
+    assert "Couldn't list cameras" not in text
+    assert window.firstRunCameraMenu.actions()[0].text() == "No camera found"
+    assert not window.label_deviceEnumNotice.isHidden()
+    window.refreshLiveStatus()
+    assert "No source" in window.statusBarWidgets.label_source.text()
+    assert "F5" in window.statusBarWidgets.label_source.toolTip()
+
+
+def test_a_failed_camera_search_is_not_shown_as_no_camera(
+    make_window, monkeypatch, qtbot, caplog
+):
+    import mainwindow
+
+    def boom():
+        raise RuntimeError("missing win32DeviceEnumBind")
+
+    monkeypatch.setattr(mainwindow, "get_camera_info", boom)
+    with caplog.at_level("ERROR", logger="sc_logging"):
+        window = make_window()
+    assert window.device_enum_state == "failed"
+    text = window.label_deviceEnumNotice.text()
+    assert text.startswith("Couldn't list cameras")
+    assert "No camera found" not in text
+    assert "Device Manager" not in text
+    assert window.firstRunCameraMenu.actions()[0].text().startswith("Couldn't list")
+    assert "设备枚举失败，请检查驱动或重装便携包" in caplog.text
+    assert "missing win32DeviceEnumBind" in caplog.text
+    window.refreshLiveStatus()
+    assert "Couldn't list cameras" in window.statusBarWidgets.label_source.text()
+    # a later successful empty search is the empty list again, not still failed
+    monkeypatch.setattr(mainwindow, "get_camera_info", lambda: [])
+    window.getSources()
+    qtbot.waitUntil(lambda: not window.sources_discovery_running)
+    assert window.device_enum_state == "empty"
+    assert window.label_deviceEnumNotice.text().startswith("No camera found")
+
+
+def test_chinese_empty_search_and_capture_card_guide(make_window, monkeypatch):
+    import mainwindow
+
+    store_data("scoresight.json", "cn_wizard_seen", True)
+    monkeypatch.setattr(mainwindow.MainWindow, "currentLocale", lambda self: "zh_CN")
+    window = make_window()
+    text = window.label_deviceEnumNotice.text()
+    assert text.startswith("没有找到摄像头/采集卡")
+    assert "设备管理器" in text and "F5" in text and "截图" in text
+    assert "设备枚举失败" not in text
+    guide = window.label_captureCardGuide.text()
+    assert "美乐威" in guide and "天创恒达" in guide
+    assert "Blackmagic" in guide and "禾鸟" in guide
+    assert "不必四路同时预览" in guide
+    assert window.firstRunCameraMenu.actions()[0].text() == "没有找到摄像头/采集卡"
+    assert window.actionCopyDeviceList is not None
+    assert window.actionCopyDeviceList.isEnabled()
+    window.refreshLiveStatus()
+    assert "没有找到摄像头/采集卡" in window.statusBarWidgets.label_source.text()
+    combo_tip = window.ui.comboBox_camera_source.toolTip()
+    assert "没有找到摄像头/采集卡" in combo_tip
+    assert "视频捕获设备" in combo_tip
+
+
+def test_chinese_failed_search_names_the_failure(make_window, monkeypatch, caplog):
+    import mainwindow
+
+    store_data("scoresight.json", "cn_wizard_seen", True)
+    monkeypatch.setattr(mainwindow.MainWindow, "currentLocale", lambda self: "zh_CN")
+
+    def boom():
+        raise OSError("CoCreateInstance failed")
+
+    monkeypatch.setattr(mainwindow, "get_camera_info", boom)
+    with caplog.at_level("ERROR", logger="sc_logging"):
+        window = make_window()
+    text = window.label_deviceEnumNotice.text()
+    assert text.startswith("设备枚举失败，请检查驱动或重装便携包")
+    assert "没有找到摄像头/采集卡" not in text
+    assert "设备管理器" not in text
+    assert window.firstRunCameraMenu.actions()[0].text() == (
+        "设备枚举失败，请检查驱动或重装便携包"
+    )
+    assert "CoCreateInstance failed" in caplog.text
+    window.refreshLiveStatus()
+    assert "设备枚举失败，请检查驱动或重装便携包" in (
+        window.statusBarWidgets.label_source.text()
+    )
+
+
+def test_copy_directshow_names_after_a_successful_refresh(
+    make_window, patched, monkeypatch, qtbot, qapp
+):
+    import mainwindow
+
+    store_data("scoresight.json", "cn_wizard_seen", True)
+    monkeypatch.setattr(mainwindow.MainWindow, "currentLocale", lambda self: "zh_CN")
+    patched["cameras"].extend(
+        [
+            CameraInfo("Magewell Pro Capture", "0", 0, CameraInfo.CameraType.OPENCV),
+            CameraInfo("NDI Board", "NDI Board", 0, CameraInfo.CameraType.NDI),
+        ]
+    )
+    window = make_window()
+    action = window.actionCopyDeviceList
+    assert action is not None and action.isEnabled()
+    assert action.text() == "复制设备列表"
+    action.trigger()
+    assert qapp.clipboard().text() == "DirectShow 设备：\nMagewell Pro Capture"
+
+    # a failed refresh does not offer the previous names as a new success
+    def boom():
+        raise RuntimeError("COM")
+
+    monkeypatch.setattr(mainwindow, "get_camera_info", boom)
+    window.getSources()
+    qtbot.waitUntil(lambda: not window.sources_discovery_running)
+    assert window.device_enum_state == "failed"
+    assert not window.actionCopyDeviceList.isEnabled()
+
+
 def test_flip_buttons_are_saved(main_window):
     ui = main_window.ui
     assert ui.toolButton_flipHorizontal.text() == "Flip H"

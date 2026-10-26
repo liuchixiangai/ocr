@@ -190,3 +190,86 @@ def test_the_source_tooltip_lists_the_picture_adjustments():
     assert adjustments_text(mirrored) == (
         "Adjust picture: flipped horizontally, flipped vertically"
     )
+
+
+def test_a_failed_search_is_not_an_empty_camera_list():
+    failed, cameras = source_bar.classify_discovery(None)
+    assert failed == source_bar.ENUM_FAILED and cameras == []
+    failed, cameras = source_bar.classify_discovery(RuntimeError("COM"))
+    assert failed == source_bar.ENUM_FAILED and cameras == []
+    failed, cameras = source_bar.classify_discovery(("failed", []))
+    assert failed == source_bar.ENUM_FAILED
+
+    empty, cameras = source_bar.classify_discovery([])
+    assert empty == source_bar.ENUM_EMPTY and cameras == []
+    empty, cameras = source_bar.classify_discovery(("ok", []))
+    assert empty == source_bar.ENUM_EMPTY
+
+    ok, cameras = source_bar.classify_discovery(
+        ("ok", [source(CameraInfo.CameraType.OPENCV, 0, "Magewell")])
+    )
+    assert ok == source_bar.ENUM_OK and cameras[0].description == "Magewell"
+
+
+def test_empty_and_failed_searches_use_different_words():
+    failed_zh = source_bar.device_enum_notice_text(source_bar.ENUM_FAILED, chinese=True)
+    empty_zh = source_bar.device_enum_notice_text(source_bar.ENUM_EMPTY, chinese=True)
+    assert failed_zh.startswith("设备枚举失败，请检查驱动或重装便携包")
+    assert "没有找到摄像头/采集卡" not in failed_zh
+    assert empty_zh.startswith("没有找到摄像头/采集卡")
+    assert "设备枚举失败" not in empty_zh
+    assert "设备管理器" in empty_zh
+    assert "OBS" in empty_zh and "vMix" in empty_zh and "F5" in empty_zh
+    assert "视频捕获设备" in empty_zh and "截图" in empty_zh
+    assert source_bar.device_enum_notice_text(source_bar.ENUM_OK, chinese=True) == ""
+    assert (
+        source_bar.device_enum_notice_text(source_bar.ENUM_PENDING, chinese=True) == ""
+    )
+
+    # a failure replaces "No source"; a successful empty search does not have to
+    assert (
+        source_text(
+            StatusSnapshot(device_enum_headline="设备枚举失败，请检查驱动或重装便携包")
+        )
+        == "设备枚举失败，请检查驱动或重装便携包"
+    )
+    assert source_text(StatusSnapshot()) == "No source"
+
+
+def test_capture_card_guide_names_the_common_cards():
+    guide = source_bar.capture_card_guide(chinese=True)
+    assert "不必四路同时预览" in guide
+    assert "美乐威" in guide and "Magewell" in guide and "通道号" in guide
+    assert "天创恒达" in guide and "免驱" in guide and "第三方软件驱动" in guide
+    assert "Blackmagic" in guide and "UltraStudio" in guide
+    assert "Desktop Video" in guide and "DirectShow" in guide
+    assert "WDM Capture" in guide
+    assert "禾鸟" in guide and "1 个设备" in guide
+    assert source_bar.capture_card_guide(chinese=False) == ""
+    html = source_bar.capture_card_guide_html()
+    assert "<li>" in html and "禾鸟" in html
+
+
+def test_directshow_names_for_support():
+    assert source_bar.directshow_names_text([]) == (
+        "没有找到摄像头/采集卡\n（刷新成功，DirectShow 列表是空的）"
+    )
+    assert source_bar.directshow_names_text(["A", "B"]) == "DirectShow 设备：\nA\nB"
+
+
+@pytest.mark.qt
+def test_the_wizard_explains_how_to_pick_a_capture_card(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    from cn_first_run_wizard import CnFirstRunWizard
+
+    wizard = CnFirstRunWizard()
+    try:
+        text = "\n".join(label.text() for label in wizard.page(0).findChildren(QLabel))
+    finally:
+        wizard.deleteLater()
+    assert "vMix Video" in text
+    assert "美乐威" in text and "Magewell" in text
+    assert "天创恒达" in text and "第三方软件驱动" in text
+    assert "Blackmagic" in text and "UltraStudio" in text and "WDM Capture" in text
+    assert "禾鸟" in text and "不必四路同时预览" in text

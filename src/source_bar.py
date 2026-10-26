@@ -248,6 +248,120 @@ def community_link() -> str:
     )
 
 
+# How the last camera / capture-card search ended. Pending: still running, or
+# not started. Empty: it finished and found nothing. Failed: it raised
+# (missing DirectShow enumerator, COM error, ...) and must not look like Empty.
+ENUM_PENDING = "pending"
+ENUM_OK = "ok"
+ENUM_EMPTY = "empty"
+ENUM_FAILED = "failed"
+
+# Shown when the search itself failed. Not the same sentence as an empty list.
+_ENUM_FAILED_ZH = "设备枚举失败，请检查驱动或重装便携包"
+_ENUM_FAILED_EN = (
+    "Couldn't list cameras. Check the driver, or reinstall the portable package."
+)
+_ENUM_FAILED_DETAIL_ZH = "具体原因已写在日志里（帮助 → 查看日志）。"
+_ENUM_FAILED_DETAIL_EN = "The reason is in the log (Help → View log)."
+
+# A search that finished and found nothing.
+_ENUM_EMPTY_ZH = "没有找到摄像头/采集卡"
+_ENUM_EMPTY_EN = "No camera found"
+_ENUM_EMPTY_TIPS_ZH = (
+    "① 设备管理器里能不能看到这块卡。\n"
+    "② 关掉 OBS、vMix 之后按 F5 再找一次。\n"
+    "③ 若 OBS「视频捕获设备」里有，而这里没有，请截图反馈。"
+)
+_ENUM_EMPTY_TIPS_EN = (
+    "1. See whether Device Manager lists the card.\n"
+    "2. Close OBS and vMix, then press F5.\n"
+    "3. If OBS Video Capture Device lists it and this app does not, send a "
+    "screenshot."
+)
+
+# How to pick a capture card. OCR reads one picture; a four-input switcher
+# does not need four previews.
+_CAPTURE_CARD_LINES_ZH = (
+    "OCR 只要选一路画面，不必四路同时预览。",
+    "美乐威 Magewell：源列表里选对应名字；多路看名字后面的通道号。",
+    "天创恒达：USB 免驱，直接选；PCIe 要先装官网「第三方软件驱动」。",
+    "Blackmagic（含雷电 UltraStudio）：先装 Desktop Video，并启用 DirectShow，"
+    "源里找 Blackmagic WDM Capture。",
+    "禾鸟等四路切换卡：列表里通常只有 1 个设备，用机身切到有记分牌的输入。",
+)
+
+
+def device_enum_messages(state: str, *, chinese: bool) -> tuple[str, str]:
+    """(headline, detail) for a search that failed or found nothing.
+
+    ("", "") when the search found a device or has not finished. The failed
+    headline is not the empty-list headline: a COM error must not look like
+    “no camera”.
+    """
+    if state == ENUM_FAILED:
+        if chinese:
+            return _ENUM_FAILED_ZH, _ENUM_FAILED_DETAIL_ZH
+        return _ENUM_FAILED_EN, _ENUM_FAILED_DETAIL_EN
+    if state == ENUM_EMPTY:
+        if chinese:
+            return _ENUM_EMPTY_ZH, _ENUM_EMPTY_TIPS_ZH
+        return _ENUM_EMPTY_EN, _ENUM_EMPTY_TIPS_EN
+    return "", ""
+
+
+def device_enum_notice_text(state: str, *, chinese: bool) -> str:
+    """The headline and the tips, or "" when there is nothing to say."""
+    headline, detail = device_enum_messages(state, chinese=chinese)
+    if not headline:
+        return ""
+    if not detail:
+        return headline
+    return f"{headline}\n{detail}"
+
+
+def capture_card_guide(*, chinese: bool) -> str:
+    """Plain lines for the source step. Empty unless the UI is Chinese."""
+    if not chinese:
+        return ""
+    return "\n".join(_CAPTURE_CARD_LINES_ZH)
+
+
+def capture_card_guide_html() -> str:
+    """The same lines for the first-run wizard."""
+    intro, *items = _CAPTURE_CARD_LINES_ZH
+    lis = "".join(f"<li>{item}</li>" for item in items)
+    return f"<p>{intro}</p><ul>{lis}</ul>"
+
+
+def classify_discovery(payload) -> tuple[str, list]:
+    """(state, cameras) for what source discovery handed back.
+
+    ("ok", list) finished. ("failed", []) raised. None is what
+    run_in_background passes when the worker raises, and that is a failure,
+    not an empty camera list. A bare list is a finished search.
+    """
+    if (
+        isinstance(payload, tuple)
+        and len(payload) == 2
+        and payload[0] in (ENUM_OK, ENUM_FAILED)
+    ):
+        if payload[0] == ENUM_FAILED:
+            return ENUM_FAILED, []
+        cameras = list(payload[1] or [])
+        return (ENUM_EMPTY if not cameras else ENUM_OK), cameras
+    if payload is None or isinstance(payload, BaseException):
+        return ENUM_FAILED, []
+    cameras = list(payload or [])
+    return (ENUM_EMPTY if not cameras else ENUM_OK), cameras
+
+
+def directshow_names_text(names: list[str]) -> str:
+    """The FriendlyNames from a search that finished, for a support paste."""
+    if not names:
+        return "没有找到摄像头/采集卡\n（刷新成功，DirectShow 列表是空的）"
+    return "DirectShow 设备：\n" + "\n".join(names)
+
+
 class CompactToolRow(QObject):
     """Fits a row of controls into less room, in up to three steps:
 
