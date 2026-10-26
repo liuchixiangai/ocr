@@ -761,7 +761,9 @@ def test_invalid_configuration_file_keeps_the_boxes(tmp_path, memory_storage, co
     assert [box.name for box in memory_storage.get_data()] == ["Home Score"]
 
 
-# --- the stored OCR model (ocr_models): no migration, its values keep meaning ----------
+# --- the stored OCR model (ocr_models) -------------------------------------------------
+# Reading a stored index does not rewrite it. The one-shot upgrade of General
+# Scoreboard (1) and Large (3) is migrate_legacy_general_scoreboard, below.
 
 
 def test_a_new_setup_gets_ppocr_automatic(data_dir):
@@ -828,3 +830,115 @@ def test_true_is_not_a_tesseract_index():
 
     assert not ocr_models.is_builtin_tesseract(True)
     assert ocr_models.choice_name(True) is None
+    assert not ocr_models.is_legacy_general_scoreboard(True)
+    assert not ocr_models.is_legacy_general_scoreboard("1")
+    assert not ocr_models.is_legacy_general_scoreboard(1.0)
+
+
+def _ppocr_usable(monkeypatch, usable: bool):
+    import ppocr_engine
+
+    monkeypatch.setattr(
+        ppocr_engine,
+        "unavailable_reason",
+        lambda model: None if usable else "the model files are missing",
+    )
+
+
+@pytest.mark.parametrize("stored", [1, 3])
+def test_legacy_general_scoreboard_moves_to_ppocr_auto_once(
+    data_dir, monkeypatch, stored
+):
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, True)
+    storage.store_data("scoresight.json", "ocr_model", stored)
+    assert ocr_models.migrate_legacy_general_scoreboard() is True
+    assert ocr_models.stored_model() == ocr_models.PPOCR_AUTO == "ppocr:auto"
+    assert storage.fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+    # choosing General Scoreboard again is a deliberate choice
+    storage.store_data("scoresight.json", "ocr_model", stored)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert ocr_models.stored_model() == stored
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [0, 2, "ppocr:auto", "ppocr:small", "ppocr:tiny"],
+)
+def test_other_stored_models_are_not_forced_to_ppocr_auto(
+    data_dir, monkeypatch, stored
+):
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, True)
+    storage.store_data("scoresight.json", "ocr_model", stored)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert ocr_models.stored_model() == stored
+    assert storage.fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+    storage.store_data("scoresight.json", "ocr_model", 1)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert ocr_models.stored_model() == 1
+
+
+def test_an_external_traineddata_is_not_migrated(data_dir, monkeypatch, tmp_path):
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, True)
+    path = str(tmp_path / "board.traineddata")
+    storage.store_data("scoresight.json", "ocr_model", path)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert ocr_models.stored_model() == path
+    assert storage.fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+
+
+def test_legacy_general_scoreboard_waits_until_ppocr_can_be_used(data_dir, monkeypatch):
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, False)
+    storage.store_data("scoresight.json", "ocr_model", 3)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert ocr_models.stored_model() == 3
+    assert storage.fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is None
+    _ppocr_usable(monkeypatch, True)
+    assert ocr_models.migrate_legacy_general_scoreboard() is True
+    assert ocr_models.stored_model() == "ppocr:auto"
+
+
+def test_a_new_setup_records_the_migration_without_storing_a_model(
+    data_dir, monkeypatch
+):
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, True)
+    assert not ocr_models.is_stored()
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert not ocr_models.is_stored()
+    assert ocr_models.stored_model() == ocr_models.PPOCR_AUTO
+    assert storage.fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+
+
+def test_a_new_setup_without_ppocr_still_records_the_migration(data_dir, monkeypatch):
+    """Nothing is stored, so there is no old General Scoreboard to retry.
+    The flag is set so a later explicit choice of model 1 is kept."""
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, False)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert not ocr_models.is_stored()
+    assert storage.fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+    storage.store_data("scoresight.json", "ocr_model", 1)
+    _ppocr_usable(monkeypatch, True)
+    assert ocr_models.migrate_legacy_general_scoreboard() is False
+    assert ocr_models.stored_model() == 1
+
+
+def test_migration_logs_the_change(data_dir, monkeypatch, caplog):
+    import ocr_models
+
+    _ppocr_usable(monkeypatch, True)
+    storage.store_data("scoresight.json", "ocr_model", 3)
+    with caplog.at_level("INFO"):
+        assert ocr_models.migrate_legacy_general_scoreboard() is True
+    assert "PP-OCR (automatic)" in caplog.text
+    assert "General Scoreboard Large" in caplog.text

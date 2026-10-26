@@ -9,7 +9,9 @@ scoreboard video and check that the readings reach the outputs.
 --engine chooses the OCR engine: ppocr (the default) leaves the OCR model out
 of the settings, as in a new setup, whose default is PP-OCR (automatic: the
 accurate model while it keeps up, the fast one when it doesn't); tesseract
-chooses the General Scoreboard model. Either way the app's log must show that
+chooses the General Scoreboard model and sets ocr_model_general_migrated, so
+startup does not treat that stored index as the old default and replace it
+with PP-OCR (automatic). Either way the app's log must show that
 engine reading (a PP-OCR that couldn't load falls back to Tesseract, which
 would otherwise pass unnoticed), and with ppocr the settings file must then
 have PP-OCR (automatic) stored as the OCR model. Whether automatic switched to
@@ -98,6 +100,9 @@ BOXES = {
 # defaults of these predefined boxes.
 BOX_SETTINGS = {"autocrop": True, "dilate": 0}
 OCR_MODEL_GENERAL_SCOREBOARD = 1  # TextDetector.OcrModelIndex.SCOREBOARD_GENERAL
+# ocr_models.MIGRATED_SETTING. Set with a deliberate General Scoreboard so the
+# one-shot upgrade does not replace it at startup.
+OCR_MODEL_MIGRATED_SETTING = "ocr_model_general_migrated"
 # a new setup's OCR model (ocr_models.DEFAULT_MODEL), stored when its source opens
 OCR_MODEL_PPOCR_DEFAULT = "ppocr:auto"
 # the model PP-OCR (automatic) reads with first, and with which it is tested
@@ -234,7 +239,8 @@ def app_settings(
 ) -> dict:
     """The profile's settings file (keys as read by src/mainwindow.py and the
     output modules). engine "ppocr" leaves the OCR model out (a new setup's
-    default); "tesseract" chooses General Scoreboard."""
+    default); "tesseract" chooses General Scoreboard and marks the one-shot
+    upgrade done, so startup keeps that choice."""
     if engine not in ENGINES:
         raise ValueError(f"unknown engine {engine!r}")
     settings = {
@@ -269,6 +275,7 @@ def app_settings(
     }
     if engine == "tesseract":
         settings["ocr_model"] = OCR_MODEL_GENERAL_SCOREBOARD
+        settings[OCR_MODEL_MIGRATED_SETTING] = True
     return settings
 
 

@@ -146,7 +146,8 @@ def test_settings_values_match_the_app():
     assert values["source_selected"]["type"] == CameraInfo.CameraType.FILE
     assert values["boxes_schema_version"] == storage.BOXES_SCHEMA_VERSION
     # PP-OCR: a new setup, without an OCR model, whose default is PP-OCR
-    # (accurate); Tesseract: General Scoreboard
+    # (automatic). Tesseract: General Scoreboard, with the one-shot upgrade
+    # already recorded so startup keeps that choice.
     assert "ocr_model" not in values
     assert e2e_test.OCR_MODEL_PPOCR_DEFAULT == ocr_models.DEFAULT_MODEL
     assert e2e_test.OCR_MODEL_PPOCR_ACCURATE == ocr_models.PPOCR_ACCURATE
@@ -161,7 +162,10 @@ def test_settings_values_match_the_app():
         == e2e_test.OCR_MODEL_GENERAL_SCOREBOARD
         == TextDetector.OcrModelIndex.SCOREBOARD_GENERAL
     )
-    assert {k: v for k, v in tesseract_values.items() if k != "ocr_model"} == values
+    assert tesseract_values[e2e_test.OCR_MODEL_MIGRATED_SETTING] is True
+    assert e2e_test.OCR_MODEL_MIGRATED_SETTING == ocr_models.MIGRATED_SETTING
+    kept = {"ocr_model", e2e_test.OCR_MODEL_MIGRATED_SETTING}
+    assert {k: v for k, v in tesseract_values.items() if k not in kept} == values
     with pytest.raises(ValueError):
         e2e_test.app_settings(Path("/v.avi"), Path("/out"), "http://x", "paddle")
     # the log lines the engine checks look for

@@ -19,9 +19,25 @@ not enabled.
 - **When blank: clear the value.** A new box setting, under Filtering: when the box has shown nothing for 2 seconds, the outputs can get an empty value instead of keeping its last one, which clears the text in vMix, OBS, the overlays, the files and every other output. **Clear the value, also at zero** also clears a box that reads zero (`0`, `0:00`) for 2 seconds. For a handball or hockey penalty timer that goes out at the end of the penalty; a shorter blank (a flicker, a hand in front of the board) keeps the value ([#140](https://github.com/royshil/scoresight/discussions/140)). It replaces **Skip empty values**, which had no effect since 0.2.0.
 - **Ask before closing.** Closing ScoreSight while a source is open now asks first, in both layouts, since it stops the reading and the outputs. **Don't ask again** in the question, or **File > Ask before closing**, turns it off. Stopping a headless ScoreSight (Ctrl+C, SIGTERM) and **Update now** don't ask ([#140](https://github.com/royshil/scoresight/discussions/140)).
 
+### Changed
+
+- **PP-OCR (automatic) for ordinary setups.** A new install still defaults to PP-OCR (automatic). An existing setup whose saved model is Tesseract: General Scoreboard or Tesseract: General Scoreboard Large is moved to PP-OCR (automatic) once, when the PP-OCR weights can be used, without opening the model list. Daktronics, General English, an external model and an existing PP-OCR (accurate) or (fast) choice stay as they are. Choosing Tesseract again afterwards is kept. Portable channel `2026.10.26.3`.
+
 ### Fixed
 
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
+
+## [2026.10.26.3] - 2026-10-26
+
+Portable channel `2026.10.26.3`: existing installs that stored Tesseract
+General Scoreboard or General Scoreboard Large move to PP-OCR (automatic)
+once, when the PP-OCR weights are usable. Installed copies on
+`2026.10.26.2` are offered this update when `version.json` is the same
+string.
+
+### Changed
+
+- **默认使用 PP-OCR（自动）。** 新安装本来就会用 PP-OCR（自动）。已经保存过「Tesseract: General Scoreboard」或「Tesseract: General Scoreboard Large」的配置，在 PP-OCR 权重可用时会自动改成 PP-OCR（自动），不用打开模型列表。转播上的花体、红字比分（例如 CBA）用这两套旧的 Tesseract 记分牌模型经常读不出来。Daktronics、General English、外部 traineddata，以及已经选过的 PP-OCR（精确）或（快速）保持不变。这次只迁移一次；之后若再改回 Tesseract，会保留这个选择。便携包仍带 `ocr_models/ppocr` 权重。发布时网站 `version.json` 的 `version` 必须是同一个 `2026.10.26.3`。
 
 ## [2026.10.26.2] - 2026-10-26
 

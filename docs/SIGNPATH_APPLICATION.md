@@ -40,7 +40,7 @@ https://ocr.4018.cn/
 https://ocr.4018.cn/
 ```
 
-当前文件名是 `GuangWeiOCR-Portable.zip`（Windows 11 x64，免安装）。通道版本 `2026.10.26.2`（`src/product_brand.py` 的 `GW_RELEASE`）。这个 zip **未签名**，SmartScreen 可能报警。完整性以下载站 `version.json` 中的 SHA-256 为准。
+当前文件名是 `GuangWeiOCR-Portable.zip`（Windows 11 x64，免安装）。通道版本 `2026.10.26.3`（`src/product_brand.py` 的 `GW_RELEASE`；这一版会在 PP-OCR 权重可用时，把已保存的 Tesseract General Scoreboard / Large 一次性改为 PP-OCR 自动）。这个 zip **未签名**，SmartScreen 可能报警。完整性以下载站 `version.json` 中的 SHA-256 为准。
 
 **License**
 

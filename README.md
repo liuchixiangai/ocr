@@ -21,7 +21,7 @@
 
 光为 OCR（GuangWei OCR）是给体育直播用的 Windows 记分牌识别程序。摄像头或采集卡对准现场记分牌，软件读出比分、时间和节次，把结果写到桌面 `光为OCR输出\results.json`，供 vMix、芯象等导播软件绑定。
 
-面向终端用户的发行形态是 **Windows 11 x64 免安装包**（可放在 U 盘里带走）。下载页：**<https://ocr.4018.cn/>**。当前下载文件是 `GuangWeiOCR-Portable.zip`（通道版本见 `src/product_brand.py` 的 `GW_RELEASE`，目前 `2026.10.26.2`）。解压到英文路径后运行 `启动光为OCR.bat` 或 `GuangWeiOCR.exe`。
+面向终端用户的发行形态是 **Windows 11 x64 免安装包**（可放在 U 盘里带走）。下载页：**<https://ocr.4018.cn/>**。当前下载文件是 `GuangWeiOCR-Portable.zip`（通道版本见 `src/product_brand.py` 的 `GW_RELEASE`，目前 `2026.10.26.3`）。解压到英文路径后运行 `启动光为OCR.bat` 或 `GuangWeiOCR.exe`。
 
 **对终端用户永久免费**，没有账号、没有水印、没有付费档。本仓库源码以 [MIT](LICENSE) 发布。
 
@@ -37,6 +37,7 @@
 - 桌面 JSON 出口，默认 `Desktop\光为OCR输出\results.json`，方便 vMix / 芯象
 - LED 多帧融合和稳定窗口（`src/led_stabilize.py`）；比赛钟和 24 秒进攻钟默认不防抖，避免秒数滞后
 - Windows 便携封装和 `ocr.4018.cn` 自动更新通道（`src/gw_auto_update.py`、`src/product_brand.py`）
+- 默认 OCR 为 PP-OCR（自动）。升级时，已保存的 Tesseract General Scoreboard / Large 会自动换成它（只此一次；之后再改回 Tesseract 会保留）
 
 上游的识别管线、PySide6 界面和大部分输出仍在。ScoreSight 的英文文档在 `docs/`，可以对照阅读。中文 vMix 说明见 [docs/vMix出站-白话.md](docs/vMix出站-白话.md)。
 
