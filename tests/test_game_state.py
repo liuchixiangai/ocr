@@ -120,6 +120,10 @@ def test_parse_clock(text, expected):
         ("ot", 5),
         ("OT2", 6),
         ("2OT", 6),
+        ("二", 2),
+        ("第二节", 2),
+        ("第2节", 2),
+        ("四", 4),
         ("", None),
         ("H", None),
         ("0", None),
@@ -895,3 +899,56 @@ def test_a_half_turned_lap_board_is_held_back_longer(game, cycle):
         "yet the other), which Racing (laps) doesn't allow"
     }
     assert cycle(g, Laps_To_Go="19") == ({}, [])
+
+
+def _clock_text(tenths: int) -> str:
+    """mm:ss.d from a tenth-of-a-second count (13:28.9 is 8089)."""
+    tenths = int(tenths)
+    minutes, rest = divmod(tenths, 600)
+    seconds, tenth = divmod(rest, 10)
+    return f"{minutes}:{seconds:02d}.{tenth}"
+
+
+def test_a_live_countdown_after_a_jump_is_accepted(game, cycle):
+    """A countdown that changes every reading must not stay held forever.
+
+    The list can show 13:28.9 while outputs still have 0:00.0; after the
+    legal pace has lasted HOLD_SECONDS the new time is the baseline.
+    """
+    g = start_basketball(game, time="0:00.0")
+    tenths = 13 * 600 + 28 * 10 + 9
+    held_flags = []
+    released = None
+    last = None
+    for _ in range(40):
+        text = _clock_text(tenths)
+        held, _events = cycle(g, step=0.1, Time=text)
+        held_flags.append("Time" in held)
+        if released is None and "Time" not in held:
+            released = text
+        last = text
+        tenths -= 1
+    assert held_flags[0] is True
+    assert held_flags[29] is True  # 2.9 s: still the old baseline
+    assert held_flags[30] is False  # 3.0 s: the live clock is sent
+    assert released == _clock_text(13 * 600 + 28 * 10 + 9 - 30)
+    assert g.engine.state().clock == last
+    # the rest of the countdown keeps going out
+    assert held_flags[-1] is False
+
+
+def test_an_incoherent_clock_jump_stays_held(game, cycle):
+    g = start_basketball(game, time="8:00")
+    for text in ("1:00", "5:00", "9:00", "2:00", "6:00", "3:30", "7:15"):
+        held, events = cycle(g, step=0.5, Time=text)
+        assert "Time" in held and events == []
+    assert g.engine.state().clock == "8:00"
+
+
+def test_a_steady_clock_correction_does_not_start_the_clock(game):
+    g = start_basketball(game, time="7:00")
+    events = []
+    for _ in range(8):
+        events += g.read(step=0.5, Time="1:00")
+    assert g.engine.state().clock == "1:00"
+    assert CLOCK_START not in g.kinds(events)

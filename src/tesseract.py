@@ -1014,8 +1014,8 @@ class TextDetector:
                         textstate = ResultState.FailedFilter
                         text = ""
         if settings.get("remove_leading_zeros") and text != "":
-            # remove leading zeros ("00" -> "0"); a failed read stays empty
-            text = text.lstrip("0") or "0"
+            # "00" -> "0"; a clock is per segment so "0:00.0" is not ":00.0"
+            text = cn_reading.strip_leading_zeros(text)
         # GuangWei OCR: period boxes publish plain N (4), never 4th/45th
         if settings.get("ordinal_indicator") and not cn_reading.is_period_box(
             box_name, settings

@@ -164,3 +164,38 @@ def test_the_log_says_what_was_held_and_why(pipeline, caplog):
         "seconds",
         "Plausibility hold: Home Score read 20, sent (50 dropped)",
     ]
+
+
+def test_a_clock_flicker_does_not_reach_the_file(pipeline):
+    from file_output import FileOutput
+
+    pipeline(Time="8:00")
+    output = FileOutput()
+    output.record(pipeline(Time="1:00"))
+    assert output.latest_text("Time") == "8:00"
+
+
+def test_a_live_countdown_reaches_results_json(pipeline, tmp_path):
+    """Basketball: after a jump off 0:00.0, game_clock follows the countdown."""
+    import json
+
+    from file_output import JSON_FILE_NAME, FileOutput
+
+    pipeline(step=0.2, Time="0:00.0")
+    output = FileOutput()
+    output.record(pipeline(step=0.2, Time="0:00.0"))
+    tenths = 8 * 600 + 50 * 10 + 7  # 8:50.7
+    fed = []
+    for _ in range(40):
+        text = f"{tenths // 600}:{(tenths // 10) % 60:02d}.{tenths % 10}"
+        output.record(pipeline(step=0.1, Time=text))
+        fed.append(output.latest_text("Time"))
+        tenths -= 1
+    assert fed[0] == "0:00.0"
+    assert fed[29] == "0:00.0"
+    assert fed[30] != "0:00.0"
+    assert fed[-1].startswith("8:")
+    output.flush(str(tmp_path), save_json=True)
+    row = json.loads((tmp_path / JSON_FILE_NAME).read_text(encoding="utf-8"))
+    assert row[0]["game_clock"] == fed[-1]
+    assert ":00.0" not in row[0]["game_clock"]

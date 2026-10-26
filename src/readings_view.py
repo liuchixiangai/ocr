@@ -54,6 +54,9 @@ LAST_GOOD_TIME_ROLE = (
 )  # monotonic time of the last good one
 REJECTED_TEXT_ROLE = Qt.ItemDataRole.UserRole + 3  # text of the latest rejected one
 HELD_VALUE_ROLE = Qt.ItemDataRole.UserRole + 4  # the value held (Hold value), or None
+# the value outputs are still sending while the list shows a newer OCR reading
+# (a plausibility hold). None when the list and the outputs agree.
+OUTBOUND_HOLD_ROLE = Qt.ItemDataRole.UserRole + 5
 # the placement (column 0's UserRole) of a template field
 TEMPLATE_PLACEMENT = "templatefield"
 
@@ -97,6 +100,8 @@ class Reading:
     stale: bool  # the last good reading is old
     held: str | None = None  # the value held for the field (Hold value)
     template: bool = False  # a template field (no OCR of its own)
+    # outputs still have this older value (a plausibility hold)
+    outbound: str | None = None
 
     @property
     def shown(self) -> str:
@@ -126,6 +131,18 @@ def set_held(item: QTableWidgetItem, value: str | None):
     _update_accessible_text(item)
 
 
+def set_outbound_hold(item: QTableWidgetItem, value: str | None):
+    """Show that outputs are still sending value, or that they match the OCR
+    (None). The list keeps showing the OCR reading."""
+    item.setData(OUTBOUND_HOLD_ROLE, None if value is None else str(value))
+    _update_accessible_text(item)
+
+
+def _role_text(item: QTableWidgetItem, role) -> str | None:
+    value = item.data(role)
+    return None if value is None else str(value)
+
+
 def _update_accessible_text(item: QTableWidgetItem):
     state_name = item.data(STATE_ROLE)
     try:
@@ -140,6 +157,7 @@ def _update_accessible_text(item: QTableWidgetItem):
         None,
         False,
         item.data(HELD_VALUE_ROLE),
+        outbound=_role_text(item, OUTBOUND_HOLD_ROLE),
     )
     item.setData(Qt.ItemDataRole.AccessibleTextRole, accessible_text(reading))
 
@@ -152,6 +170,7 @@ def clear_reading(item: QTableWidgetItem):
         LAST_GOOD_TIME_ROLE,
         REJECTED_TEXT_ROLE,
         HELD_VALUE_ROLE,
+        OUTBOUND_HOLD_ROLE,
         Qt.ItemDataRole.AccessibleTextRole,
     ):
         item.setData(role, None)
@@ -178,6 +197,9 @@ def reading_at(index, now: float | None = None, stale_after: float = MIN_STALE_A
         stale=held is None and age is not None and age > stale_after,
         held=None if held is None else str(held),
         template=placement == TEMPLATE_PLACEMENT,
+        outbound=None
+        if index.data(OUTBOUND_HOLD_ROLE) is None
+        else str(index.data(OUTBOUND_HOLD_ROLE)),
     )
 
 
@@ -241,9 +263,18 @@ def held_text() -> str:
     return QCoreApplication.translate("ReadingDelegate", "HELD")
 
 
+def outbound_text(value: str) -> str:
+    """The note that outputs are still sending an older value."""
+    shown = value if value != "" else "∅"
+    return QCoreApplication.translate("ReadingDelegate", "output still {value}").format(
+        value=shown
+    )
+
+
 def reading_note(reading: Reading) -> str:
     """The line under the value, e.g. "new · 3 s", "rejected ‘2l’ · 8 s" or,
-    for a held value, "held · OCR: 21"."""
+    for a held value, "held · OCR: 21". While a plausibility hold keeps an
+    older value on the outputs, "output still 0:00.0" is added."""
     if reading.held is not None:
         ocr = "" if reading.template else ocr_text(reading)
         if not ocr:
@@ -254,6 +285,8 @@ def reading_note(reading: Reading) -> str:
     parts = [state_text(reading)]
     if reading.age is not None:
         parts.append(format_age(reading.age))
+    if reading.outbound is not None:
+        parts.append(outbound_text(reading.outbound))
     return " · ".join(part for part in parts if part)
 
 
@@ -262,7 +295,10 @@ def accessible_text(reading: Reading) -> str:
     if reading.held is not None:
         held = QCoreApplication.translate("ReadingDelegate", "held")
         return ", ".join(part for part in (reading.held, held) if part)
-    return ", ".join(part for part in (reading.value, state_text(reading)) if part)
+    parts = [reading.value, state_text(reading)]
+    if reading.outbound is not None:
+        parts.append(outbound_text(reading.outbound))
+    return ", ".join(part for part in parts if part)
 
 
 def reading_tooltip(reading: Reading) -> str:
@@ -275,6 +311,15 @@ def reading_tooltip(reading: Reading) -> str:
                 "readings until you release it (Release, or right-click the "
                 "field).",
             ).format(value=reading.held)
+        )
+    if reading.outbound is not None:
+        lines.append(
+            QCoreApplication.translate(
+                "ReadingDelegate",
+                "Outputs are still sending {value}. This list shows the new "
+                "OCR reading. It is sent once the sport accepts the change "
+                "(a running clock, after a few seconds).",
+            ).format(value=reading.outbound if reading.outbound != "" else "∅")
         )
     if reading.value:
         if reading.age is not None:
@@ -587,6 +632,9 @@ class ReadingDelegate(QStyledItemDelegate):
         if held:
             # "held · OCR: 21": what the OCR reads meanwhile
             state_part, age_part = reading_note(reading), ""
+        outbound_part = ""
+        if reading.outbound is not None and not held:
+            outbound_part = outbound_text(reading.outbound)
         if selected or not enabled:
             state_color = age_color = muted_color
         else:
@@ -604,6 +652,14 @@ class ReadingDelegate(QStyledItemDelegate):
         if state_part and age_part:
             segments.insert(0, (" · ", muted_color))
         segments.insert(0, (state_part, state_color))
+        if outbound_part:
+            segments.append((" · ", muted_color))
+            out_color = (
+                muted_color
+                if selected or not enabled
+                else theme.color("paused", palette)
+            )
+            segments.append((outbound_part, out_color))
         segments = [(text, color) for text, color in segments if text]
         total = sum(note_metrics.horizontalAdvance(text) for text, _ in segments)
         if total > note_rect.width():

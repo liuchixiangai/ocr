@@ -5482,6 +5482,16 @@ Resolution: {width}×{height}</source>
 <context>
     <name>ReadingDelegate</name>
     <message>
+        <location filename="../src/readings_view.py" line="267"/>
+        <source>output still {value}</source>
+        <translation>出站仍是 {value}</translation>
+    </message>
+    <message>
+        <location filename="../src/readings_view.py" line="267"/>
+        <source>Outputs are still sending {value}. This list shows the new OCR reading. It is sent once the sport accepts the change (a running clock, after a few seconds).</source>
+        <translation>出站仍在发送 {value}。列表显示的是新的识别结果，运动规则接受这次变化后才会发出（连续变化的比赛时间，大约几秒）。</translation>
+    </message>
+    <message>
         <location filename="../src/readings_view.py" line="199"/>
         <source>new</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>

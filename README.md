@@ -21,7 +21,7 @@
 
 光为 OCR（GuangWei OCR）是给体育直播用的 Windows 记分牌识别程序。摄像头或采集卡对准现场记分牌，软件读出比分、时间和节次，把结果写到桌面 `光为OCR输出\results.json`，供 vMix、芯象等导播软件绑定。
 
-面向终端用户的发行形态是 **Windows 11 x64 免安装包**（可放在 U 盘里带走）。下载页：**<https://ocr.4018.cn/>**。当前下载文件是 `GuangWeiOCR-Portable.zip`（通道版本见 `src/product_brand.py` 的 `GW_RELEASE`，目前 `2026.10.26.3`）。解压到英文路径后运行 `启动光为OCR.bat` 或 `GuangWeiOCR.exe`。
+面向终端用户的发行形态是 **Windows 11 x64 免安装包**（可放在 U 盘里带走）。下载页：**<https://ocr.4018.cn/>**。当前下载文件是 `GuangWeiOCR-Portable.zip`（通道版本见 `src/product_brand.py` 的 `GW_RELEASE`，目前 `2026.10.26.4`）。解压到英文路径后运行 `启动光为OCR.bat` 或 `GuangWeiOCR.exe`。
 
 **对终端用户永久免费**，没有账号、没有水印、没有付费档。本仓库源码以 [MIT](LICENSE) 发布。
 

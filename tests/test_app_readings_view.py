@@ -27,6 +27,7 @@ from readings_view import (  # noqa: E402
     reading_tooltip,
     record_reading,
     set_held,
+    set_outbound_hold,
     state_glyph,
 )
 
@@ -267,3 +268,28 @@ def test_state_colours_follow_the_palette(qapp):
         assert theme.color(name, light) != theme.color(name, dark)
     assert theme.on_color(light) != theme.on_color(dark)
     assert not theme.media_icon("pause", theme.on_color(dark)).isNull()
+
+
+def test_an_outbound_hold_is_shown_under_the_ocr_reading(table):
+    """The list keeps the green OCR value and says what the outputs still send."""
+    record_reading(value(table), ResultState.Success, "13:28.9", now=1.0)
+    set_outbound_hold(value(table), ":00.0")
+    reading = reading_at(index(table), now=2.0)
+    assert (reading.value, reading.shown, reading.outbound) == (
+        "13:28.9",
+        "13:28.9",
+        ":00.0",
+    )
+    assert reading_note(reading) == "new · 1 s · output still :00.0"
+    assert "still sending :00.0" in reading_tooltip(reading)
+    assert value(table).data(Qt.ItemDataRole.AccessibleTextRole) == (
+        "13:28.9, new, output still :00.0"
+    )
+    delegate = ReadingDelegate(table, clock=lambda: 2.0)
+    table.setItemDelegateForColumn(1, delegate)
+    table.resize(500, 120)
+    table.grab()
+    set_outbound_hold(value(table), None)
+    reading = reading_at(index(table), now=2.0)
+    assert reading.outbound is None
+    assert "output still" not in reading_note(reading)

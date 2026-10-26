@@ -48,6 +48,8 @@ _PERIOD_ORD = re.compile(
 )
 # OCR often turns 节 into a trailing 5 / S next to the quarter digit
 _PERIOD_DIGIT_NOISE = re.compile(r"^([1-4])[5Ss节]$")
+# A Chinese board often shows only the numeral (二), not 第二节.
+_PERIOD_BARE_CN = re.compile(r"^[一二三四五六七八九十]$")
 
 
 def _cn_digit(token: str) -> str | None:
@@ -63,8 +65,9 @@ def _cn_digit(token: str) -> str | None:
 def normalize_period_text(text: str) -> str | None:
     """Extract a period number as digits (\"4\"), or None if unknown.
 
-    Accepts 第四节 / 第4节 / Q4 / 4th / 4 / OT. Output is always plain digits
-    (or \"OT\" / \"OT2\") so vMix gets one stable shape — not 4th / 45th.
+    Accepts 第四节 / 第4节 / 二 / Q4 / 4th / 4 / OT. A bare 一二三四五六七八九十
+    is the period number (二 -> 2). Output is always plain digits (or \"OT\" /
+    \"OT2\") so vMix gets one stable shape — not 4th / 45th.
     """
     if text is None:
         return None
@@ -97,9 +100,43 @@ def normalize_period_text(text: str) -> str | None:
     m = _PERIOD_DIGIT_NOISE.fullmatch(s.replace(" ", ""))
     if m:
         return m.group(1)
+    m = _PERIOD_BARE_CN.fullmatch(s.replace(" ", ""))
+    if m:
+        return _cn_digit(m.group(0))
     if re.fullmatch(r"[1-9]|10", s):
         return s
     return None
+
+
+def _strip_numeric_token(token: str) -> str:
+    """Leading zeros off one clock segment. An empty segment becomes \"0\"
+    so \"0:00\" is not stripped down to \":00\"."""
+    if not token:
+        return "0"
+    stripped = token.lstrip("0")
+    return stripped or "0"
+
+
+def strip_leading_zeros(text: str) -> str:
+    """Remove leading zeros without breaking a clock.
+
+    A pure number is stripped as a whole (\"007\" -> \"7\", \"00\" -> \"0\").
+    A clock is stripped per segment: only the leftmost colon-separated part
+    (\"01:16.7\" -> \"1:16.7\", \"0:00.0\" stays \"0:00.0\", \"08:05\" -> \"8:05\").
+    The seconds keep their digits, so \"05\" does not become \"5\". A lone
+    \"ss.d\" (\"09.8\", \"00.0\") strips the integer part only.
+    """
+    if not text:
+        return text
+    if ":" in text:
+        parts = text.split(":")
+        parts[0] = _strip_numeric_token(parts[0])
+        return ":".join(parts)
+    if text.count(".") == 1:
+        whole, frac = text.split(".", 1)
+        if (whole == "" or whole.isdigit()) and frac.isdigit():
+            return f"{_strip_numeric_token(whole)}.{frac}"
+    return text.lstrip("0") or "0"
 
 
 def normalize_clock_text(text: str) -> str:

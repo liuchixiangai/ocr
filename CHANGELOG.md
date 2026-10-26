@@ -26,6 +26,18 @@ not enabled.
 ### Fixed
 
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
+- **Game clock reaches the files while a sport is selected.** A jump from `0:00` to a live countdown was held until one time stayed still for 3 seconds, so a clock that changes every reading never went out (`results.json` stayed at `:00.0` while the field list showed the new time in green). A legal pace is accepted after those same few seconds. Removing leading zeros no longer turns `0:00.0` into `:00.0`. A bare Chinese period numeral such as 「二」is published as `2`. Portable channel `2026.10.26.4`.
+
+## [2026.10.26.4] - 2026-10-26
+
+Portable channel `2026.10.26.4`: the game clock is written out while a sport
+is selected, and Chinese period / leading-zero clocks are not dropped.
+Installed copies on `2026.10.26.3` are offered this update when
+`version.json` is the same string.
+
+### Fixed
+
+- **比赛时间能写进 results.json。** 选了篮球等运动后，比分和犯规会更新，比赛时间却停在 `:00.0`，左侧列表却是绿色的 `13:28.9` / `8:50.7`。大跳变要等同一个读数稳住约 3 秒才放行，而倒计时每一帧都在变，所以一直被按住，文件也不再重写。现在一段合法的连续计时在同样几秒后成为新的基准并写出。去掉前导零不再把 `0:00.0` 变成 `:00.0`。节次只识别到「二」时会变成 `2`。列表在出站仍是旧值时会标明「出站仍是 …」，避免再把绿色成功当成已经写出。发布时网站 `version.json` 的 `version` 必须是同一个 `2026.10.26.4`。
 
 ## [2026.10.26.3] - 2026-10-26
 

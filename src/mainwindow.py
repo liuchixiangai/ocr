@@ -126,6 +126,7 @@ from readings_view import (
     clear_reading,
     record_reading,
     set_held,
+    set_outbound_hold,
 )
 from resource_path import resource_path
 import source_bar
@@ -5213,6 +5214,24 @@ class MainWindow(QMainWindow):
         ):
             button.setEnabled(enabled)
 
+    def _outboundHoldText(self, reading, sent) -> str | None:
+        """The older value outputs are still sending, when a plausibility hold
+        keeps it while the list shows a newer OCR reading. None when they
+        match, or when Hold value already explains the difference."""
+        if reading.name in self.heldValues or is_template_field(reading):
+            return None
+        good = (
+            TextDetectionTargetWithResult.ResultState.Success,
+            TextDetectionTargetWithResult.ResultState.SameNoChange,
+        )
+        if reading.result_state not in good or sent.result_state not in good:
+            return None
+        ocr = "" if reading.result is None else str(reading.result)
+        outbound = "" if sent.result is None else str(sent.result)
+        if ocr == outbound:
+            return None
+        return outbound
+
     def ocrResult(self, results: list[TextDetectionTargetWithResult]):
         # 光为 OCR 数据口：按模式覆盖/替换 OCR 结果后再走同一出站管道
         results = self._mergeDataIngest(results)
@@ -5259,6 +5278,7 @@ class MainWindow(QMainWindow):
             item = self.boxValueItem(reading.name)
             if item is not None:
                 record_reading(item, reading.result_state, reading.result, now)
+                set_outbound_hold(item, self._outboundHoldText(reading, sent))
 
         if not self.updateOCRResults:
             # the outputs are paused (the readings above keep updating)

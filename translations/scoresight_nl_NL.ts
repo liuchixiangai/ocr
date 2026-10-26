@@ -5467,6 +5467,16 @@ Resolutie: {width}×{height}</translation>
 <context>
     <name>ReadingDelegate</name>
     <message>
+        <location filename="../src/readings_view.py" line="267"/>
+        <source>output still {value}</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/readings_view.py" line="267"/>
+        <source>Outputs are still sending {value}. This list shows the new OCR reading. It is sent once the sport accepts the change (a running clock, after a few seconds).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/readings_view.py" line="199"/>
         <source>new</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
