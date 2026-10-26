@@ -20,11 +20,13 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QStyle,
     QStyleOptionComboBox,
     QTableWidgetItem,
 )
 from PySide6.QtGui import (
+    QAction,
     QActionGroup,
     QDesktopServices,
     QFont,
@@ -394,8 +396,9 @@ def stored_source_value(stored) -> dict | None:
 
 
 class MainWindow(QMainWindow):
-    # add a signal to update sources
-    update_sources = Signal(list)
+    # add a signal to update sources. object, not list: a failed search is
+    # ("failed", []) and must not be forced into an empty list.
+    update_sources = Signal(object)
     get_sources = Signal()
     # results of the work done on background threads, delivered on the GUI thread
     obs_connection_result = Signal(object, int, bool, object)
@@ -629,6 +632,9 @@ class MainWindow(QMainWindow):
         # the title of the window a screen capture shows
         self.sourceWindowTitle: str | None = None
         self.sources_discovery_running = False
+        # pending until the first search finishes; failed is not the same as empty
+        self.device_enum_state = source_bar.ENUM_PENDING
+        self.actionCopyDeviceList = None
         self.closing = False
         # set by a quit signal and Update now: close without asking first
         self.close_without_asking = False
@@ -782,7 +788,9 @@ class MainWindow(QMainWindow):
         try:
             from cn_first_run_wizard import maybe_show_cn_first_run_wizard
 
-            QTimer.singleShot(400, lambda: maybe_show_cn_first_run_wizard(self))
+            # context is the window: the shot is dropped if the window is
+            # already closed (the functor is not a child of the window)
+            QTimer.singleShot(400, self, lambda: maybe_show_cn_first_run_wizard(self))
         except Exception:
             logger.exception("cn first-run wizard failed to schedule")
 
@@ -1343,6 +1351,7 @@ class MainWindow(QMainWindow):
         self.updateAdjustHintVisibility()
         self.applyOcrModelTexts()
         self.applyGuangweiHelpMenu()
+        self._syncCopyDeviceListAction()
         self.updateFieldsHint()
         self.updateFieldActions()
         self.updateFieldToolTips()
@@ -1391,6 +1400,46 @@ class MainWindow(QMainWindow):
         action = self.ui.actionCheckForUpdates
         action.setText("检查更新")
         action.setStatusTip("检查光为 OCR 是否有新版本")
+
+    def _chinese_ui(self) -> bool:
+        return str(self.currentLocale() or "").lower().startswith("zh")
+
+    def _syncCopyDeviceListAction(self):
+        """Help > 复制设备列表, on the Chinese UI, after a search that finished."""
+        zh = is_guangwei_channel() and self._chinese_ui()
+        action = self.actionCopyDeviceList
+        if not zh:
+            if action is not None:
+                self.ui.menuHelp.removeAction(action)
+                action.deleteLater()
+                self.actionCopyDeviceList = None
+            return
+        if action is None:
+            action = QAction(self)
+            action.setObjectName("actionCopyDeviceList")
+            action.setMenuRole(QAction.MenuRole.NoRole)
+            action.triggered.connect(self.copyDeviceList)
+            self.actionCopyDeviceList = action
+            self.ui.menuHelp.insertAction(self.ui.actionAbout, action)
+        action.setText("复制设备列表")
+        action.setStatusTip("把当前 DirectShow 设备名复制出来，方便反馈")
+        action.setEnabled(
+            self.device_enum_state in (source_bar.ENUM_OK, source_bar.ENUM_EMPTY)
+        )
+
+    def copyDeviceList(self):
+        """Copy DirectShow FriendlyNames from the last search that finished."""
+        if self.device_enum_state == source_bar.ENUM_FAILED:
+            return
+        names = []
+        combo = self.ui.comboBox_camera_source
+        for index in range(FIRST_CAMERA_SOURCE_INDEX, combo.count()):
+            info = combo.itemData(index)
+            if getattr(info, "type", None) == CameraInfo.CameraType.OPENCV:
+                names.append(str(info.description))
+        text = source_bar.directshow_names_text(names)
+        QGuiApplication.clipboard().setText(text)
+        logger.info("Copied DirectShow device list (%d name(s))", len(names))
 
     def retranslateMenus(self):
         names = {
@@ -2001,6 +2050,18 @@ class MainWindow(QMainWindow):
             values["http_url"] = urls[0]
             values["http_urls"] = urls
             values["http_port"] = port
+        headline, detail = source_bar.device_enum_messages(
+            getattr(self, "device_enum_state", source_bar.ENUM_PENDING),
+            chinese=self._chinese_ui(),
+        )
+        # English keeps "No source" for a successful empty search (the label
+        # under the source list has the tips). A failure, and a Chinese empty
+        # search, replace that status line so the reason is on screen.
+        if self.device_enum_state == source_bar.ENUM_FAILED or (
+            self.device_enum_state == source_bar.ENUM_EMPTY and self._chinese_ui()
+        ):
+            values["device_enum_headline"] = headline
+        values["device_enum_detail"] = detail
         return StatusSnapshot(**values)
 
     # --- the outputs: destinations and their status --------------------------------
@@ -3877,17 +3938,47 @@ class MainWindow(QMainWindow):
             return
         self.sources_discovery_running = True
         self.ui.pushButton_refresh_sources.setEnabled(False)
-        run_in_background(
-            "source discovery",
-            lambda: get_camera_info() or [],
-            lambda sources: self.update_sources.emit(sources or []),
-        )
 
-    @Slot(list)
-    def updateSources(self, camera_sources: list[CameraInfo]):
+        def discover():
+            try:
+                return ("ok", list(get_camera_info() or []))
+            except Exception:
+                # Caught here on purpose. run_in_background turns a raised
+                # exception into None, and the old callback then emitted []:
+                # a missing enumerator or a COM error looked like no camera.
+                logger.exception("设备枚举失败，请检查驱动或重装便携包")
+                return ("failed", [])
+
+        def deliver(result):
+            if not (
+                isinstance(result, tuple)
+                and len(result) == 2
+                and result[0] in ("ok", "failed")
+            ):
+                logger.error("设备枚举失败，请检查驱动或重装便携包")
+                result = ("failed", [])
+            self.update_sources.emit(result)
+
+        run_in_background("source discovery", discover, deliver)
+
+    @Slot(object)
+    def updateSources(self, camera_sources):
         # only the first discovery (at startup) counts
         startup_timing.mark("sources_discovered")
         self.sources_discovery_running = False
+        state, camera_sources = source_bar.classify_discovery(camera_sources)
+        self.device_enum_state = state
+        if state == source_bar.ENUM_FAILED:
+            logger.error("设备枚举失败，请检查驱动或重装便携包（不是空的设备列表）")
+        else:
+            names = [
+                str(camera.description)
+                for camera in camera_sources
+                if getattr(camera, "type", None) == CameraInfo.CameraType.OPENCV
+            ]
+            logger.info(
+                "DirectShow devices: %s", ", ".join(names) if names else "(none)"
+            )
         if self.closing:
             # the discovery finished after the window was closed: don't reopen
             # the source
@@ -3911,6 +4002,9 @@ class MainWindow(QMainWindow):
         self.updateSourceBar()
         self.fitSourceList()
         self.updateFirstRunCameraMenu()
+        self._applyDeviceEnumNotice()
+        if hasattr(self, "statusBarWidgets"):
+            self.statusBarWidgets.update(self.statusSnapshot())
 
         self.ui.comboBox_camera_source.setEnabled(True)
         currentIndexChangedSignal = QMetaMethod.fromSignal(
@@ -4425,6 +4519,36 @@ class MainWindow(QMainWindow):
             )
         for label in (ui.label_firstRunBoxesHint, ui.label_firstRunOutputsHint):
             label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+        # Why the camera list is empty, or why the search failed. Under the
+        # source combo, including while a file is open. Hidden until a search
+        # finishes with nothing or with an error. Horizontal policy Ignored so
+        # the wrapped text does not widen the viewer column.
+        notice = QLabel(ui.frame_source_view)
+        notice.setObjectName("label_deviceEnumNotice")
+        notice.setWordWrap(True)
+        notice.setMinimumSize(QSize(1, 0))
+        notice_policy = QSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
+        notice_policy.setHeightForWidth(True)
+        notice.setSizePolicy(notice_policy)
+        notice.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        notice.hide()
+        ui._3.insertWidget(1, notice)
+        self.label_deviceEnumNotice = notice
+        guide = QLabel(ui.widget_firstRunSource)
+        guide.setObjectName("label_captureCardGuide")
+        guide.setWordWrap(True)
+        guide.setMinimumWidth(0)
+        guide_policy = QSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
+        guide_policy.setHeightForWidth(True)
+        guide.setSizePolicy(guide_policy)
+        guide.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+        guide.hide()
+        ui.verticalLayout_firstRunSource.addWidget(guide)
+        self.label_captureCardGuide = guide
         # ✨ Auto crop and ✨ Auto layout
         self.autoLayoutUi = AutoLayoutUI(self)
         self.compactRows = []
@@ -4576,6 +4700,39 @@ class MainWindow(QMainWindow):
         if self.image_viewer is not None:
             # "Drag over the numbers to place ..."
             self.image_viewer.updatePlacementHint()
+        self._applyDeviceEnumNotice()
+
+    def _deviceEnumNoticeText(self) -> str:
+        return source_bar.device_enum_notice_text(
+            getattr(self, "device_enum_state", source_bar.ENUM_PENDING),
+            chinese=self._chinese_ui(),
+        )
+
+    def _applyDeviceEnumNotice(self):
+        """The line under the source list, the capture-card guide, and Help."""
+        if not hasattr(self, "label_deviceEnumNotice"):
+            return
+        text = self._deviceEnumNoticeText()
+        label = self.label_deviceEnumNotice
+        if not text:
+            label.hide()
+            label.setText("")
+            label.setToolTip("")
+        else:
+            label.setText(text)
+            label.setToolTip(text)
+            if self.device_enum_state == source_bar.ENUM_FAILED:
+                color = theme.color("rejected", self.palette()).name()
+                label.setStyleSheet(f"color: {color};")
+            else:
+                label.setStyleSheet("")
+                label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+            label.show()
+        guide = self.label_captureCardGuide
+        guide_text = source_bar.capture_card_guide(chinese=self._chinese_ui())
+        guide.setText(guide_text)
+        guide.setVisible(bool(guide_text))
+        self._syncCopyDeviceListAction()
 
     def applyViewerStyles(self):
         """The colours of the viewer column's controls, from the palette (again
@@ -4708,6 +4865,9 @@ class MainWindow(QMainWindow):
                 "vMix window. Play and pause buttons in the preview mean this is "
                 "the program window, not a clean picture.",
             )
+        notice = self._deviceEnumNoticeText()
+        if notice:
+            tooltip = f"{tooltip}\n{notice}"
         combo.setToolTip(f"{full_name}\n{tooltip}" if full_name else tooltip)
 
         camera = (
@@ -5160,9 +5320,13 @@ class MainWindow(QMainWindow):
                 lambda checked=False, index=index: self.chooseSource(index)
             )
         if menu.isEmpty():
-            none = menu.addAction(
-                QCoreApplication.translate("MainWindow", "No camera found")
+            headline, _detail = source_bar.device_enum_messages(
+                getattr(self, "device_enum_state", source_bar.ENUM_PENDING),
+                chinese=self._chinese_ui(),
             )
+            if not headline:
+                headline = QCoreApplication.translate("MainWindow", "No camera found")
+            none = menu.addAction(headline)
             none.setEnabled(False)
         menu.addSeparator()
         menu.addAction(self.ui.actionReloadSources)

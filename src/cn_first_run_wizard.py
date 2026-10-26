@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from product_brand import APP_DISPLAY_NAME
+from source_bar import capture_card_guide_html
 from storage import fetch_data, store_data
 
 CN_WIZARD_SEEN = "cn_wizard_seen"
@@ -70,7 +71,8 @@ class CnFirstRunWizard(QWizard):
                     "预览里若能看到播放、暂停按钮，抓到的是软件界面，不是干净的节目画面。</li>"
                     "</ol>"
                     "<p>点「下一步」继续。</p>"
-                ),
+                )
+                + capture_card_guide_html(),
             ),
             (
                 _tr("四角校正画面"),
@@ -145,6 +147,15 @@ class CnFirstRunWizard(QWizard):
 def maybe_show_cn_first_run_wizard(main_window) -> bool:
     """Show forced wizard once for Chinese locale. Returns True if shown."""
     if fetch_data("scoresight.json", CN_WIZARD_SEEN, False):
+        return False
+    # The timer is not a child of the window. A test (or a quit) can close the
+    # window before it fires; building the wizard on a deleted parent crashes.
+    try:
+        from shiboken6 import isValid
+
+        if main_window is None or not isValid(main_window):
+            return False
+    except Exception:
         return False
     locale = ""
     try:
