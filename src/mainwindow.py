@@ -149,7 +149,6 @@ from defaults import (
     default_boxes,
     default_info_for_box_name,
     normalize_settings_dict,
-    is_clock_like_field,
     force_clock_zero_latency,
 )
 
@@ -208,9 +207,12 @@ except Exception:  # pragma: no cover
     STATUS_CHECK_FAILED = "更新检查失败"
     check_gw_update = None  # type: ignore
     describe_check = None  # type: ignore
-    is_guangwei_channel = lambda: False  # type: ignore
     show_check_failed_dialog = None  # type: ignore
     show_up_to_date_dialog = None  # type: ignore
+
+    def is_guangwei_channel():
+        return False
+
     show_gw_update_dialog = None  # type: ignore
 from log_view import LogViewerDialog
 import file_output
@@ -512,6 +514,8 @@ class MainWindow(QMainWindow):
 
         # connect toolButton_rotate
         self.ui.toolButton_rotate.clicked.connect(self.rotateImage)
+        self.ui.toolButton_flipHorizontal.clicked.connect(self.toggleFlipHorizontal)
+        self.ui.toolButton_flipVertical.clicked.connect(self.toggleFlipVertical)
 
         self.ui.horizontalSlider_detectionCadence.setValue(
             fetch_data("scoresight.json", "detection_cadence", 5)
@@ -1908,6 +1912,10 @@ class MainWindow(QMainWindow):
             if lan_address != self.lanAddress:
                 self.lanAddress = lan_address
                 self.updateBrowserEndpoints()
+        # The first output-folder write happens while the window is still
+        # being built, before the status bar exists.
+        if not hasattr(self, "statusBarWidgets"):
+            return
         outputs = self.refreshDestinations(now)
         self.gameUiHandler.refresh()
         snapshot = self.statusSnapshot(now, outputs)
@@ -1955,6 +1963,8 @@ class MainWindow(QMainWindow):
             # the picture adjustments, for the source's tooltip
             crop = getattr(thread, "crop", None)
             values["rotation"] = int(getattr(crop, "rotation", 0) or 0)
+            values["flip_horizontal"] = bool(getattr(crop, "flipHorizontal", False))
+            values["flip_vertical"] = bool(getattr(crop, "flipVertical", False))
             values["cropped"] = bool(getattr(crop, "isCropSet", False))
             values["four_corner_corrected"] = viewer.hasFourCornerCorrection()
             values["stabilized"] = bool(getattr(thread, "stabilizationEnabled", False))
@@ -2846,7 +2856,6 @@ class MainWindow(QMainWindow):
             btn.setProperty("fieldName", name)
         name = str(btn.property("fieldName") or "")
         btn.setText(self._selectBoxButtonLabel())
-        table = self.ui.tableWidget_boxes
         name_item = self.boxNameItem(name) if name else None
         role = (
             name_item.data(Qt.ItemDataRole.UserRole) if name_item is not None else None
@@ -4476,6 +4485,7 @@ class MainWindow(QMainWindow):
         """The viewer column's texts that are made at runtime."""
         self.updateSourceBar()
         self.updateRotateText()
+        self.updateFlipButtons()
         self.updateZoomReadout()
         self.updateFourCornerUi()
         self.autoLayoutUi.applyTexts()
@@ -4835,6 +4845,27 @@ class MainWindow(QMainWindow):
         if rotation is None:
             rotation = fetch_data("scoresight.json", "rotation", 0)
         self.ui.toolButton_rotate.setText(source_bar.rotate_text(rotation))
+
+    def toggleFlipHorizontal(self):
+        """Mirror left to right. The preview, the boxes and the OCR share it."""
+        self.globalSettingsChanged(
+            "flip_horizontal", self.ui.toolButton_flipHorizontal.isChecked()
+        )
+
+    def toggleFlipVertical(self):
+        """Mirror top to bottom. The preview, the boxes and the OCR share it."""
+        self.globalSettingsChanged(
+            "flip_vertical", self.ui.toolButton_flipVertical.isChecked()
+        )
+
+    def updateFlipButtons(self):
+        """The mirror buttons follow the saved settings (also after a language
+        change, which doesn't clear them)."""
+        for button, key in (
+            (self.ui.toolButton_flipHorizontal, "flip_horizontal"),
+            (self.ui.toolButton_flipVertical, "flip_vertical"),
+        ):
+            button.setChecked(bool(fetch_data("scoresight.json", key, False)))
 
     def fourCornerClicked(self):
         """4-corner never removes a correction silently: with one in place it

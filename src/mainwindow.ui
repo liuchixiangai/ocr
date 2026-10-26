@@ -198,7 +198,7 @@
               <number>100</number>
              </attribute>
              <attribute name="horizontalHeaderStretchLastSection">
-              <bool>true</bool>
+              <bool>false</bool>
              </attribute>
              <attribute name="verticalHeaderVisible">
               <bool>false</bool>
@@ -211,6 +211,11 @@
              <column>
               <property name="text">
                <string>Value</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Box</string>
               </property>
              </column>
             </widget>
@@ -801,6 +806,32 @@
             </property>
             <property name="text">
              <string>Rotate</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="toolButton_flipHorizontal">
+            <property name="toolTip">
+             <string>Mirror the picture left to right. Turn this on when a capture card shows a mirrored image, then place the boxes: the preview and the OCR read the flipped picture. The choice is kept next time you start.</string>
+            </property>
+            <property name="text">
+             <string>Flip H</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="toolButton_flipVertical">
+            <property name="toolTip">
+             <string>Mirror the picture top to bottom. The preview and the OCR read the flipped picture, and the choice is kept next time you start.</string>
+            </property>
+            <property name="text">
+             <string>Flip V</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -3359,7 +3390,7 @@
                       <string>Also write results.csv: a timestamp and a column per field</string>
                      </property>
                      <property name="text">
-                      <string>Save .csv file</string>
+                      <string>CSV for vMix · results.csv</string>
                      </property>
                     </widget>
                    </item>
@@ -3376,10 +3407,10 @@
                    <item>
                     <widget class="QCheckBox" name="checkBox_saveJson">
                      <property name="toolTip">
-                      <string>Also write results.json: one object with every field's latest value, {"Home Score": "21", ...} (for example for SuiteCG)</string>
+                      <string>Write results.json for vMix Data Sources: one array row with every field, [{"Home Score": "21", ...}]</string>
                      </property>
                      <property name="text">
-                      <string>Save .json file</string>
+                      <string>JSON for vMix (recommended) · results.json</string>
                      </property>
                     </widget>
                    </item>
@@ -3390,6 +3421,19 @@
                      </property>
                      <property name="text">
                       <string>Save key=value .txt file</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QCheckBox" name="checkBox_savePerBoxTxt">
+                     <property name="toolTip">
+                      <string>One .txt per field (not recommended; use results.json for vMix)</string>
+                     </property>
+                     <property name="text">
+                      <string>One .txt per field</string>
+                     </property>
+                     <property name="checked">
+                      <bool>false</bool>
                      </property>
                     </widget>
                    </item>
@@ -4920,6 +4964,8 @@
     <addaction name="actionCollectTrainingData"/>
     <addaction name="actionOCRTrainingDataSetup"/>
     <addaction name="separator"/>
+    <addaction name="actionDataIngest"/>
+    <addaction name="separator"/>
     <addaction name="actionViewLog"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -5030,6 +5076,17 @@
    </property>
    <property name="menuRole">
     <enum>QAction::AboutRole</enum>
+   </property>
+  </action>
+  <action name="actionDataIngest">
+   <property name="text">
+    <string>数据口...</string>
+   </property>
+   <property name="toolTip">
+    <string>从记分台串口/网口接收比分与时间（与 OCR 并存）</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionViewLog">

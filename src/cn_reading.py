@@ -27,16 +27,10 @@ _CN_DIGITS = {
 }
 
 # Characters PP-OCR / Tesseract may emit for a period box on a Chinese board.
-PERIOD_CHAR_WHITELIST = (
-    "0123456789"
-    "第节上下半一二三四五六七八九十"
-    "QqPpHhOoTtNnDdRrSs "
-)
+PERIOD_CHAR_WHITELIST = "0123456789第节上下半一二三四五六七八九十QqPpHhOoTtNnDdRrSs "
 
 # Expanded clock: mm:ss, mm:ss.d, m:ss.d, ss.d (七段常见 01:16.7)
-CLOCK_FORMAT_EXPANDED = (
-    r"^(?:(?:[0-5]?\d:[0-5]\d(?:\.\d)?)|(?:[0-5]?\d\.\d))$"
-)
+CLOCK_FORMAT_EXPANDED = r"^(?:(?:[0-5]?\d:[0-5]\d(?:\.\d)?)|(?:[0-5]?\d\.\d))$"
 # Old preset 0 (and UI label said mm:ss.d but regex lacked the fraction)
 CLOCK_FORMAT_OLD = r"^(?:(?:[0-5]?\d:[0-5]\d)|(?:[0-5]?\d\.\d))$"
 
@@ -45,15 +39,9 @@ _FULLWIDTH = str.maketrans(
     "0123456789:.",
 )
 
-_PERIOD_DI = re.compile(
-    r"第\s*([1-9]|10|[一二三四五六七八九十])\s*节"
-)
-_PERIOD_CN_SHORT = re.compile(
-    r"([一二三四五六七八九十])\s*节"
-)
-_PERIOD_Q = re.compile(
-    r"^[QqPpHh]\s*([1-9]|10)$"
-)
+_PERIOD_DI = re.compile(r"第\s*([1-9]|10|[一二三四五六七八九十])\s*节")
+_PERIOD_CN_SHORT = re.compile(r"([一二三四五六七八九十])\s*节")
+_PERIOD_Q = re.compile(r"^[QqPpHh]\s*([1-9]|10)$")
 _PERIOD_ORD = re.compile(
     r"^([1-9]|10)(?:st|nd|rd|th)?$",
     re.IGNORECASE,
@@ -87,7 +75,10 @@ def normalize_period_text(text: str) -> str | None:
     # overtime
     if upper in ("OT", "O", "加时", "加時"):
         return "OT"
-    m = re.fullmatch(r"(?:OT|O|加时|加時)\s*([1-9])?", upper if upper.startswith("OT") or upper.startswith("O") else s)
+    m = re.fullmatch(
+        r"(?:OT|O|加时|加時)\s*([1-9])?",
+        upper if upper.startswith("OT") or upper.startswith("O") else s,
+    )
     if upper.startswith("OT") or re.fullmatch(r"O\d?", upper):
         extra = re.search(r"(\d)", upper)
         return "OT" if not extra else f"OT{extra.group(1)}"

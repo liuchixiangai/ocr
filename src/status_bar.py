@@ -14,8 +14,8 @@ import socket
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
-from PySide6.QtCore import QCoreApplication, QObject, QPoint, QSize, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QPalette
+from PySide6.QtCore import QCoreApplication, QObject, QPoint, QSize, Qt, Signal
+from PySide6.QtGui import QGuiApplication, QPalette
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -30,8 +30,6 @@ import ppocr_engine
 import theme
 from product_brand import (
     QQ_GROUP_NUMBER,
-    QQ_GROUP_OPEN_URL,
-    QQ_GROUP_WEB_URL,
     SIMPLIFY_OUTPUT_UI,
 )
 from camera_info import CameraInfo
@@ -146,9 +144,12 @@ class StatusSnapshot:
     # data), into this folder
     collecting_training_data: bool = False
     training_data_folder: str = ""
-    # the picture adjustments in effect: the rotation in degrees, and whether
-    # the picture is cropped, corrected with four corners and stabilized
+    # the picture adjustments in effect: the rotation in degrees, whether the
+    # picture is mirrored, and whether it is cropped, corrected with four
+    # corners and stabilized
     rotation: int = 0
+    flip_horizontal: bool = False
+    flip_vertical: bool = False
     cropped: bool = False
     four_corner_corrected: bool = False
     stabilized: bool = False
@@ -288,6 +289,10 @@ def adjustments_text(snapshot: StatusSnapshot) -> str:
                 angle=snapshot.rotation
             )
         )
+    if snapshot.flip_horizontal:
+        parts.append(QCoreApplication.translate("StatusBar", "flipped horizontally"))
+    if snapshot.flip_vertical:
+        parts.append(QCoreApplication.translate("StatusBar", "flipped vertically"))
     if snapshot.cropped:
         parts.append(QCoreApplication.translate("StatusBar", "cropped"))
     if snapshot.four_corner_corrected:
@@ -566,7 +571,6 @@ class MainStatusBar(QObject):
         self.label_qq_help.linkActivated.connect(self.openQqGroup)
         self.label_qq_help.hide()
 
-
         # "Outputs: ● Files ● HTTP ▲ vMix ...": a button per output
         self.widget_outputs = QWidget(statusbar)
         self.widget_outputs.setObjectName("widget_statusOutputs")
@@ -636,11 +640,10 @@ class MainStatusBar(QObject):
         )
         if SIMPLIFY_OUTPUT_UI:
             link = '<a href="qq-group">复制群号</a>'
-            self.label_qq_help.setText(
-                f"不会用？加 QQ 群 {QQ_GROUP_NUMBER}（{link}）"
-            )
+            self.label_qq_help.setText(f"不会用？加 QQ 群 {QQ_GROUP_NUMBER}（{link}）")
             self.label_qq_help.setToolTip(
-                f"点击复制群号 {QQ_GROUP_NUMBER}，到 QQ 里搜索加群")
+                f"点击复制群号 {QQ_GROUP_NUMBER}，到 QQ 里搜索加群"
+            )
             muted = theme.muted_color(self.statusbar.palette()).name()
             self.label_qq_help.setStyleSheet(
                 f"QLabel {{ color: {muted}; font-size: 12px; }}"
@@ -791,7 +794,6 @@ class MainStatusBar(QObject):
             self.label_qq_help,
             msecShowTime=5000,
         )
-
 
     def copyHttpUrl(self):
         if not self.snapshot.http_url:

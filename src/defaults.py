@@ -158,7 +158,6 @@ default_custom_box_info = {
 }
 
 
-
 def is_clock_like_field(name, field_type=None) -> bool:
     """True for game clock / shot clock boxes (must stay zero-latency).
 
@@ -329,7 +328,9 @@ def normalize_settings_dict(settings, box_info):
             if "led_stack_frames" in settings
             else default_led_stack_frames(
                 (box_info or {}).get("name"),
-                settings["type"] if "type" in settings else (box_info or {}).get("type"),
+                settings["type"]
+                if "type" in settings
+                else (box_info or {}).get("type"),
             )
         ),
         "led_stack_mode": (
@@ -342,7 +343,9 @@ def normalize_settings_dict(settings, box_info):
             if "led_stable_ms" in settings
             else default_led_stable_ms(
                 (box_info or {}).get("name"),
-                settings["type"] if "type" in settings else (box_info or {}).get("type"),
+                settings["type"]
+                if "type" in settings
+                else (box_info or {}).get("type"),
             )
         ),
     }

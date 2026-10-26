@@ -70,6 +70,21 @@ def pytest_report_header(config):
     return f"scoresight test data/log dir: {_SESSION_DIR}"
 
 
+def pytest_ignore_collect(collection_path, config):
+    """Skip the OCR-eval tests when that package is not in this tree.
+
+    This portable fork does not ship ``ocr_eval`` (it is listed in
+    ``.gitignore``). Those tests import the package at module level, so
+    collecting them aborts the whole run with ModuleNotFoundError. When the
+    package is present, the tests are collected as usual.
+    """
+    if not collection_path.name.startswith("test_ocr_eval"):
+        return None
+    if importlib.util.find_spec("ocr_eval") is None:
+        return True
+    return None
+
+
 def pytest_collection_modifyitems(config, items):
     if PPOCR_MISSING is not None:
         if REQUIRE_PPOCR:

@@ -85,9 +85,13 @@ Publishing a portable zip must move **both** to the same newer string.
 If they stay equal, installed copies will not offer an update (the check
 is doing what it should; the release was not published to the channel).
 
+The flip/FPS portable already on the download site is `2026.10.26.1`.
+The next zip (the one that includes newer code) needs a newer string;
+`bump_gw_release.py` rejects the same version.
+
 ```bash
-python scripts/bump_gw_release.py 2026.10.26.1 --dry-run
-python scripts/bump_gw_release.py 2026.10.26.1
+python scripts/bump_gw_release.py <newer-than-GW_RELEASE> --dry-run
+python scripts/bump_gw_release.py <newer-than-GW_RELEASE>
 ```
 
 Then upload `GuangWeiOCR-Portable.zip` and publish `version.json` with that

@@ -186,3 +186,7 @@ def test_the_source_tooltip_lists_the_picture_adjustments():
     assert adjustments_text(snapshot) == (
         "Adjust picture: rotated 90°, cropped, 4-corner corrected, stabilized"
     )
+    mirrored = StatusSnapshot(flip_horizontal=True, flip_vertical=True)
+    assert adjustments_text(mirrored) == (
+        "Adjust picture: flipped horizontally, flipped vertically"
+    )

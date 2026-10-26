@@ -55,7 +55,7 @@ class AutoLayoutUI(QObject):
         }
         self.busy: str | None = None
         # what the picture was made with when the model started: a result for
-        # another picture (the crop, rotation or source changed) is dropped
+        # another picture (the crop, rotation, mirror or source changed) is dropped
         self.started_for = None
         self.downloaded: tuple[int, int] | None = None
         for kind, button in self.buttons.items():
@@ -90,14 +90,17 @@ class AutoLayoutUI(QObject):
     # --- running the model ------------------------------------------------------------
 
     def pictureState(self):
-        """What the pictures are made with: the viewer, the rotation, the crop
-        and the 4-corner correction."""
+        """What the pictures are made with: the viewer, the rotation, the
+        mirror, the crop and the 4-corner correction."""
         window = self.window
         viewer = window.image_viewer
         thread = viewer.timerThread if viewer is not None else None
+        crop = None if thread is None else thread.crop
         return (
             id(viewer),
-            None if thread is None else thread.crop.rotation,
+            None if crop is None else crop.rotation,
+            None if crop is None else bool(crop.flipHorizontal),
+            None if crop is None else bool(crop.flipVertical),
             window.ui.toolButton_topCrop.isChecked(),
             window.cropValues(),
             None if thread is None else id(thread.homography),

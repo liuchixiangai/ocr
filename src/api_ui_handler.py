@@ -227,7 +227,6 @@ class APIUIHandler:
         )
         area.setMinimumWidth(width)
 
-
     def ensure_guangwei_preset_item(self):
         """Add「光为网站（预留）」to the Preset combo if the .ui only has 3 items."""
         combo = self.ui.comboBox_outApiPreset

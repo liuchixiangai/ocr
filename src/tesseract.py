@@ -11,7 +11,7 @@ in the preprocessed patch whatever the engine.
 """
 
 from dataclasses import dataclass
-from defaults import CHAR_WHITELISTS, GENERAL_CHAR_WHITELIST, FieldType
+from defaults import CHAR_WHITELISTS, GENERAL_CHAR_WHITELIST
 import cn_reading
 from os import path
 from PIL import Image
@@ -301,8 +301,6 @@ def _empty_result(rect=None):
     return TextDetectionResult("", ResultState.Empty, rect)
 
 
-
-
 def _apply_led_stack(rect, settings, patch):
     """光为 OCR: fuse last N crops (max/median) before OCR when enabled."""
     n = int(settings.get("led_stack_frames") or 0)
@@ -313,6 +311,7 @@ def _apply_led_stack(rect, settings, patch):
         return patch
     mode = settings.get("led_stack_mode") or "max"
     return stack.push_and_fuse(patch, n, mode)
+
 
 def _wh_ratio_key(settings: dict):
     # character width/height ratios depend on these settings; when one of them

@@ -204,7 +204,9 @@ def test_failed_replace_keeps_the_old_file_and_retries(make_result, out, monkeyp
     assert os.listdir(out) == ["Home Score.txt"]  # no temp file left behind
 
     reader["has_file_open"] = False
-    output.flush(str(out), save_per_box_txt=True)  # the pending value is written by the next flush
+    output.flush(
+        str(out), save_per_box_txt=True
+    )  # the pending value is written by the next flush
     assert read(out / "Home Score.txt") == "13"
 
 
@@ -358,7 +360,9 @@ def test_csv_append_keeps_a_log_written_by_an_old_version(make_result, out):
 def test_csv_not_written_when_disabled(make_result, out):
     output = FileOutput()
     output.record([make_result("Home Score", "1")])
-    output.flush(str(out), APPEND_CSV, save_csv=False, save_xml=False, save_per_box_txt=True)
+    output.flush(
+        str(out), APPEND_CSV, save_csv=False, save_xml=False, save_per_box_txt=True
+    )
     assert sorted(os.listdir(out)) == ["Home Score.txt"]
 
 
@@ -427,11 +431,13 @@ def test_json_and_key_value_files_have_every_box_with_its_last_good_value(
         ]
     )
     output.flush(str(out), save_json=True, save_key_value=True, save_per_box_txt=True)
-    assert json.loads(read(out / "results.json")) == [{
-        "home_score": "12",
-        "game_clock": "",
-        "Priode": "2ème",
-    }]
+    assert json.loads(read(out / "results.json")) == [
+        {
+            "home_score": "12",
+            "game_clock": "",
+            "Priode": "2ème",
+        }
+    ]
     assert read(out / "results.txt").splitlines() == [
         "Home Score=12",
         "Time=",
@@ -446,11 +452,13 @@ def test_json_and_key_value_files_have_every_box_with_its_last_good_value(
         ]
     )
     output.flush(str(out), save_json=True, save_key_value=True, save_per_box_txt=True)
-    assert json.loads(read(out / "results.json")) == [{
-        "home_score": "12",
-        "game_clock": "4:59",
-        "Priode": "2ème",
-    }]
+    assert json.loads(read(out / "results.json")) == [
+        {
+            "home_score": "12",
+            "game_clock": "4:59",
+            "Priode": "2ème",
+        }
+    ]
     assert "Time=4:59" in read(out / "results.txt").splitlines()
 
 
@@ -476,7 +484,9 @@ def test_json_and_key_value_files_are_written_atomically_on_change(
     output = FileOutput()
     for text, state in [("1", "Success"), ("1", "SameNoChange"), ("2", "Success")]:
         output.record([make_result("Home Score", text, state)])
-        output.flush(str(out), save_json=True, save_key_value=True, save_per_box_txt=True)
+        output.flush(
+            str(out), save_json=True, save_key_value=True, save_per_box_txt=True
+        )
     assert writes.count("results.json") == 2
     assert writes.count("results.txt") == 2
     # a deleted file is written again
