@@ -311,11 +311,47 @@ def force_clock_zero_latency(settings, name, field_type=None) -> bool:
     return changed
 
 
+# ScoreSight's English predefined names. The boxes the app creates are the
+# Chinese default_boxes above. A layout (or the end-to-end harness) that still
+# uses these names needs the same type and format: "Time" as a custom number
+# keeps only digits, so the clock whitelist drops the colon and "12:00" is
+# published as "1200".
+_ENGLISH_PREDEFINED_OF = {
+    "Home Score": "主队得分",
+    "Away Score": "客队得分",
+    "Time": "比赛时间",
+    "Period": "节次",
+    "Home Fouls": "主队犯规",
+    "Away Fouls": "客队犯规",
+    "Shot Clock": "24秒",
+}
+
+
+def _english_predefined_boxes() -> dict[str, dict]:
+    by_name = {box["name"]: box for box in default_boxes}
+    built = {}
+    for english, chinese in _ENGLISH_PREDEFINED_OF.items():
+        info = dict(by_name[chinese])
+        info["name"] = english
+        if english == "Period":
+            # "4th". 节次 stays off: cn_reading turns 第四节 into "4".
+            info["ordinal_indicator"] = True
+            info["obs_source_name"] = "Period"
+        built[english] = info
+    return built
+
+
+_ENGLISH_PREDEFINED = _english_predefined_boxes()
+
+
 def default_info_for_box_name(name):
     # Get the info for a box name
     for box in default_boxes:
         if box["name"] == name:
             return box
+    english = _ENGLISH_PREDEFINED.get(name)
+    if english is not None:
+        return english
     if is_chinese_text_name(name):
         return {**default_text_box_info, "name": name}
     return default_custom_box_info

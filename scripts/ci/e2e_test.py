@@ -117,7 +117,7 @@ ENGINE_LOG_LINES = {
 }
 # logged when PP-OCR couldn't load and Tesseract reads instead
 PPOCR_FALLBACK_LOG_LINE = "reading the boxes with Tesseract"
-BOXES_SCHEMA_VERSION = 3  # storage.BOXES_SCHEMA_VERSION
+BOXES_SCHEMA_VERSION = 4  # storage.BOXES_SCHEMA_VERSION
 FINAL_HOLD_SECONDS = 8
 
 
@@ -264,6 +264,9 @@ def app_settings(
         "append_method": 0,
         "save_csv": True,
         "save_xml": True,
+        # GuangWei leaves per-box .txt off (one results.json is enough for
+        # vMix). This harness checks Home Score.txt and the other box files.
+        "save_per_box_txt": True,
         "aggs_per_second": 10,
         # the outbound API: every detection cycle, POSTed as JSON (Full)
         "enable_out_api": True,
@@ -845,7 +848,12 @@ def run_e2e(
     port = app_harness.free_port()
     report_path = work_dir / "startup-report.json"
     env = app_harness.app_env(
-        data_dir, log_dir, SCORESIGHT_STARTUP_REPORT=str(report_path)
+        data_dir,
+        log_dir,
+        SCORESIGHT_STARTUP_REPORT=str(report_path),
+        # GuangWei otherwise replaces output_folder with Desktop/光为OCR输出,
+        # and the file checks below look in output_dir.
+        SCORESIGHT_OUTPUT_DIR=str(output_dir),
     )
     full_command = [*command, "--profile", PROFILE, "--port", str(port)]
     print(f"$ {subprocess.list2cmdline(full_command)}", flush=True)

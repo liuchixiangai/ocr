@@ -105,3 +105,18 @@ def ensure_default_output_folder() -> str:
     folder = default_output_folder()
     os.makedirs(folder, exist_ok=True)
     return folder
+
+
+def configured_output_folder() -> str | None:
+    """SCORESIGHT_OUTPUT_DIR, when set: where a headless run writes files.
+
+    The GuangWei UI always uses Desktop\\光为OCR输出. The end-to-end harness
+    sets this so results.csv and the per-box .txt files land in its work
+    directory instead. None when the variable is unset or blank.
+    """
+    raw = os.environ.get("SCORESIGHT_OUTPUT_DIR", "").strip()
+    if not raw:
+        return None
+    folder = os.path.abspath(raw)
+    os.makedirs(folder, exist_ok=True)
+    return folder

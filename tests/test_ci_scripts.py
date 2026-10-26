@@ -183,6 +183,9 @@ def test_settings_values_match_the_app():
     assert e2e_test.PPOCR_FALLBACK_LOG_LINE in sources
     assert e2e_test.PPOCR_AUTO_FAST_LOG_LINE in sources
     assert values["append_method"] == file_output.APPEND_CSV
+    assert values["save_csv"] is True and values["save_xml"] is True
+    # per-box .txt is off in the GuangWei UI; the harness turns it on
+    assert values["save_per_box_txt"] is True
     assert values["out_api_encoding"] in api_output.ENCODINGS
     assert values["out_api_method"] in api_output.METHODS
     assert update_check.DISABLE_UPDATE_CHECKS_KEY in values
@@ -543,6 +546,39 @@ def test_print_diagnostics(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "scoresight_1.log" in output
     assert "Traceback: boom" in output and "line 1" not in output
+
+
+def test_print_diagnostics_survives_a_cp1252_console(tmp_path, monkeypatch):
+    """Windows CI prints the log with the console code page. Chinese lines
+    (光为 OCR) must not raise UnicodeEncodeError and hide the real failure."""
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "scoresight_1.log").write_text("光为 OCR\n", encoding="utf-8")
+
+    class Sink:
+        encoding = "cp1252"
+
+        def __init__(self):
+            self.buffer = self
+            self.written = b""
+
+        def write(self, data):
+            if isinstance(data, str):
+                data.encode("cp1252")
+            else:
+                self.written += data
+            return len(data)
+
+        def flush(self):
+            pass
+
+    sink = Sink()
+    monkeypatch.setattr(sys, "stdout", sink)
+    app_harness.print_diagnostics(None, logs, lines=5)
+    text = sink.written.decode("cp1252")
+    assert "OCR" in text
+    assert "?" in text
+    assert "光为" not in text
 
 
 # --- the boot benchmark --------------------------------------------------------------

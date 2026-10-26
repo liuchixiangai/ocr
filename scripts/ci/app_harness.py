@@ -250,18 +250,35 @@ def tail(text: str, lines: int) -> str:
     return "\n".join(text.rstrip().splitlines()[-lines:])
 
 
+def _print_text(text: str) -> None:
+    """Print text. A Windows cp1252 console cannot encode the Chinese log
+    lines (光为 OCR); replace those characters instead of aborting the run."""
+    try:
+        print(text, flush=True)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        data = (text + "\n").encode(encoding, errors="replace")
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is not None:
+            buffer.write(data)
+            buffer.flush()
+        else:
+            sys.stdout.write(data.decode(encoding, errors="replace"))
+            sys.stdout.write("\n")
+
+
 def print_diagnostics(app: AppProcess | None, log_dir: Path, lines: int = 150) -> None:
     """Print the app's output and the end of its log files (a windowed app
     can't show a traceback)."""
     if app is not None:
-        print(f"----- app output ({app.output_path.name}) -----")
-        print(tail(app.output(), lines) or "(none)")
+        _print_text(f"----- app output ({app.output_path.name}) -----")
+        _print_text(tail(app.output(), lines) or "(none)")
     log_files = sorted(Path(log_dir).glob("*.log")) if Path(log_dir).is_dir() else []
     if not log_files:
-        print(f"----- no log files in {log_dir} -----")
+        _print_text(f"----- no log files in {log_dir} -----")
     for log_file in log_files:
-        print(f"----- {log_file.name} (last {lines} lines) -----")
-        print(tail(log_file.read_text(encoding="utf-8", errors="replace"), lines))
+        _print_text(f"----- {log_file.name} (last {lines} lines) -----")
+        _print_text(tail(log_file.read_text(encoding="utf-8", errors="replace"), lines))
     sys.stdout.flush()
 
 

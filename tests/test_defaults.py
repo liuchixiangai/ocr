@@ -35,6 +35,9 @@ CANONICAL_SETTINGS = {
     "templatefield": False,
     "templatefield_text": "",
     "composite_box": False,
+    "led_stack_frames": 4,
+    "led_stack_mode": "max",
+    "led_stable_ms": 200,
 }
 
 
@@ -53,7 +56,14 @@ def test_normalize_settings_uses_box_info_for_missing_keys():
 
     clock = normalize_settings_dict({}, default_info_for_box_name("Time"))
     assert clock["type"] == FieldType.TIME
+    assert clock["is_custom"] is False
     assert clock["format_regex"] == format_prefixes[0]
+    # digits-only "1200" is what a NUMBER whitelist publishes for 12:00
+    assert re.fullmatch(clock["format_regex"], "12:00")
+    assert re.fullmatch(clock["format_regex"], "1200") is None
+    chinese = normalize_settings_dict({}, default_info_for_box_name("比赛时间"))
+    assert chinese["type"] == FieldType.TIME
+    assert chinese["format_regex"] == clock["format_regex"]
 
 
 def test_normalize_settings_keeps_user_values():
@@ -89,13 +99,13 @@ def test_normalize_settings_drops_unknown_and_runtime_keys():
 def test_default_info_for_box_name():
     names = [box["name"] for box in default_boxes]
     assert names == [
-        "Home Score",
-        "Away Score",
-        "Time",
-        "Period",
-        "Home Fouls",
-        "Away Fouls",
-        "Shot Clock",
+        "主队得分",
+        "客队得分",
+        "比赛时间",
+        "节次",
+        "主队犯规",
+        "客队犯规",
+        "24秒",
     ]
     for box in default_boxes:
         assert default_info_for_box_name(box["name"]) is box
@@ -177,3 +187,16 @@ def test_shot_clock_accepts_a_single_digit(text, matches):
     shot_clock = normalize_settings_dict({}, default_info_for_box_name("24秒"))
     assert shot_clock["format_regex"] == format_prefixes[4]
     assert (re.fullmatch(shot_clock["format_regex"], text) is not None) == matches
+
+
+def test_scoresight_output_dir_overrides_the_desktop_folder(tmp_path, monkeypatch):
+    from product_brand import configured_output_folder
+
+    monkeypatch.delenv("SCORESIGHT_OUTPUT_DIR", raising=False)
+    assert configured_output_folder() is None
+    dest = tmp_path / "e2e-out"
+    monkeypatch.setenv("SCORESIGHT_OUTPUT_DIR", str(dest))
+    assert configured_output_folder() == str(dest)
+    assert dest.is_dir()
+    monkeypatch.setenv("SCORESIGHT_OUTPUT_DIR", "  ")
+    assert configured_output_folder() is None
