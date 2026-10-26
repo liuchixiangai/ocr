@@ -141,7 +141,7 @@ A brace that doesn't form a repeat count, as in `^\d{1,2$`, is read as a plain c
 ### Remove leading zeros
 {: #remove-leading-0s }
 
-`remove_leading_zeros`: removes zeros at the start, so `07` becomes `7` (and `00` becomes `0`). An empty reading stays empty. In ScoreSight 0.1.x: **Remove leading 0s**.
+`remove_leading_zeros`: removes zeros at the start, so `07` becomes `7` (and `00` becomes `0`). A clock is stripped per segment, so `01:16.7` becomes `1:16.7` and `0:00.0` stays `0:00.0` (it is not turned into `:00.0`). The seconds keep their digits (`08:05` becomes `8:05`). An empty reading stays empty. In ScoreSight 0.1.x: **Remove leading 0s**.
 
 **Use**: for scoreboards that zero-pad scores or fouls, when your graphics should show `7`.
 

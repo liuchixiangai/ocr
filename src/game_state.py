@@ -15,7 +15,11 @@ a reading that flickers for one cycle makes no event. A change the sport
 doesn't allow (a basketball score going up by 5 or down, 21 -> 81, a period
 skipped, the clock jumping) counts only once it has been read steadily for
 HOLD_SECONDS, which a real correction is. The clock's small moves count at
-once. A lap counter allows only one lap at a time, the way it counts (laps to
+once. A clock that jumps and then keeps a legal pace (each reading a small
+move from the previous one, so a countdown can change every frame) becomes
+the new baseline after that same hold. It does not have to repeat one time,
+which a live clock never does. A lap counter allows only one lap at a time,
+the way it counts (laps to
 go down, laps completed up); a lap board set for the next race (laps to go
 back up, laps completed back to 0) is a new race once read steadily for
 HOLD_SECONDS. A lap board of hand-turned cards shows another number while a
@@ -301,6 +305,25 @@ class GameState:
         }
 
 
+class _ClockStream:
+    """A clock jump that may be a new baseline: the readings since it started.
+
+    Each step has to be a small move from the previous reading (a countdown
+    changes every frame; one frozen time is a stream of zero-sized moves).
+    anchor is the accepted clock when the stream started, so a new baseline
+    doesn't keep an old stream.
+    """
+
+    __slots__ = ("since", "last", "last_at", "count", "anchor")
+
+    def __init__(self, since: float, last: float, last_at: float, anchor: float):
+        self.since = since
+        self.last = last
+        self.last_at = last_at
+        self.count = 1
+        self.anchor = anchor
+
+
 class _Tracker:
     """A role's value: the one that counts, and a new one being confirmed."""
 
@@ -416,6 +439,10 @@ class GameEngine:
         self._running = False
         self._direction = -1 if self.sport.clock_counts_down else 1  # -1: counts down
         self._against = 0  # clock moves against the direction, in a row
+        # an implausible clock reading that is still a legal pace (a countdown
+        # after a jump). None until one starts. Not a value of _Tracker: a
+        # running clock's seconds change every reading.
+        self._clock_stream: _ClockStream | None = None
         self._last_update_at: float | None = None
         self._interval: float | None = None  # between updates (average)
         self._roles_for: tuple[tuple[str, ...], dict[str, str]] = ((), {})
@@ -520,6 +547,15 @@ class GameEngine:
                 continue
             value, plausible = judged
             tracker = self._trackers[role]
+            # a live clock after a jump: the seconds change every reading, so
+            # the steady-value hold would never end. A legal pace for
+            # HOLD_SECONDS is the new baseline (update() accepts it too).
+            if (
+                role == CLOCK
+                and not plausible
+                and self._clock_stream_accepts(value, now)
+            ):
+                plausible = True
             if tracker.holds(value, now, plausible, self._hold_seconds(role, value)):
                 held[result.name] = self._hold_reason(role, tracker, value, text)
         return held
@@ -737,12 +773,23 @@ class GameEngine:
         seconds, small = judged
         tracker = self._trackers[CLOCK]
         old = tracker.value
+        # a jump that then keeps a legal pace becomes the baseline, but it is
+        # not a "small move": it must not start the clock or teach a direction
+        jumped = False
+        if old is None or small:
+            self._clock_stream = None
+        elif self._clock_stream_accepts(seconds, now):
+            jumped = True
+            small = True
+            self._clock_stream = None
+        else:
+            self._note_clock_stream(seconds, now)
         tracker.seen_at = now
         if not tracker.offer(seconds, text, now, small, 1):
             return
         if old is None:
             return
-        if small:
+        if small and not jumped:
             self._learn_direction(seconds - old)
             # only a move the way the clock counts starts it (a second back
             # is a misread, or the board being set)
@@ -751,6 +798,45 @@ class GameEngine:
                 self._emit(CLOCK_START, events)
         if seconds == 0 and self._direction < 0:
             self._end_period(self._trackers[PERIOD].value, now, events, at_zero=True)
+
+    def _clock_stream_continued(self, new: float, now: float) -> tuple[int, float]:
+        """(readings, started at) this implausible clock reading would have.
+
+        A step that is a small move from the previous reading of the current
+        stream continues it. Anything else starts a new stream at this
+        reading. Changes nothing."""
+        tracker = self._trackers[CLOCK]
+        stream = self._clock_stream
+        if (
+            stream is not None
+            and stream.anchor == tracker.value
+            and self._small_clock_move(stream.last, new, stream.last_at, now)
+        ):
+            return stream.count + 1, stream.since
+        return 1, now
+
+    def _clock_stream_accepts(self, new: float, now: float) -> bool:
+        """Whether this implausible clock reading has been a legal pace for
+        HOLD_SECONDS (HOLD_READINGS times), so it is the new baseline."""
+        count, since = self._clock_stream_continued(new, now)
+        return count >= HOLD_READINGS and now - since >= HOLD_SECONDS
+
+    def _note_clock_stream(self, new: float, now: float) -> None:
+        """Remember this implausible clock reading on the stream it belongs to."""
+        count, since = self._clock_stream_continued(new, now)
+        if count == 1 or self._clock_stream is None:
+            self._clock_stream = _ClockStream(
+                since=now,
+                last=new,
+                last_at=now,
+                anchor=self._trackers[CLOCK].value,
+            )
+            return
+        stream = self._clock_stream
+        stream.count = count
+        stream.since = since
+        stream.last = new
+        stream.last_at = now
 
     def _small_clock_move(self, old: float, new: float, seen_at, now: float) -> bool:
         """The clock ran (either way) for about the time since it was last

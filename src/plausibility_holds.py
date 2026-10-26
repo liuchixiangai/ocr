@@ -1,9 +1,11 @@
 """Plausibility holds: with a sport chosen, a change the sport doesn't allow
 (a basketball score going from 21 to 81, a score going down, a period
 skipped, the clock jumping) doesn't go on air until the game follows it:
-until it has been read steadily for game_state.HOLD_SECONDS. A misread that
-flickers is never sent; a real correction is, a few seconds late. Changes the
-sport allows go out at once.
+until it has been read steadily for game_state.HOLD_SECONDS. A game clock
+that jumps and then keeps a legal pace (the time can change every reading)
+is followed after that same wait, so a live countdown is not held forever.
+A misread that flickers is never sent; a real correction is, a few seconds
+late. Changes the sport allows go out at once.
 
 PlausibilityHolds sits between the OCR and the outputs, like Hold value
 (held_values.py): MainWindow.ocrResult asks the game (GameEngine.held_back)

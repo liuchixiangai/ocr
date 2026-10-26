@@ -90,7 +90,9 @@ The hardened auto-updater (retries, a required SHA-256, background
 download with resume, a safer apply script, and the Chinese 检查更新
 label) ships as `2026.10.26.2`. Moving a stored Tesseract General
 Scoreboard or General Scoreboard Large to PP-OCR (automatic) once, when
-the weights are usable, ships as `2026.10.26.3`. The next zip needs a
+the weights are usable, ships as `2026.10.26.3`. A game clock that jumps onto
+a live countdown, clock leading zeros, and a bare Chinese period numeral
+ship as `2026.10.26.4`. The next zip needs a
 newer string; `bump_gw_release.py` rejects the same version.
 
 ```bash
