@@ -137,6 +137,9 @@ def release_for(blob: bytes, version="2026.10.26.1") -> GwReleaseInfo:
         ("2026.10.25.2", "2026.10.25.1", False),
         ("2026.10.25.9", "2026.10.25.10", True),
         ("2026.10.25.1", "2026.10.26.1", True),
+        ("2026.10.26.1", "2026.10.26.2", True),
+        ("2026.10.26.2", "2026.10.26.1", False),
+        ("2026.10.26.2", "2026.10.26.2", False),
         ("2026.10.1", "2026.9.30", False),
         ("2026.9.30", "2026.10.1", True),
         ("2026.10.25.1", "v2026.10.25.2", True),
@@ -146,6 +149,14 @@ def release_for(blob: bytes, version="2026.10.26.1") -> GwReleaseInfo:
 )
 def test_channel_version_compare(current, candidate, newer):
     assert is_newer(candidate, current) is newer
+
+
+def test_shipped_channel_is_newer_than_the_flip_portable():
+    """Flip and 25 fps shipped as 2026.10.26.1; the hardened updater is .2."""
+    assert GW_RELEASE == "2026.10.26.2"
+    assert is_newer(GW_RELEASE, "2026.10.26.1")
+    assert not is_newer("2026.10.26.1", GW_RELEASE)
+    assert not is_newer(GW_RELEASE, GW_RELEASE)
 
 
 def test_same_installed_and_site_version_is_not_an_update(monkeypatch, caplog):
