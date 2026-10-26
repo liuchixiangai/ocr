@@ -26,7 +26,7 @@ SIMPLIFY_OUTPUT_UI = True
 # upstream ScoreSight __version__). A portable publish must bump this AND
 # ocr.4018.cn/version.json to the same newer string (scripts/bump_gw_release.py).
 # If they stay equal, installed copies will not offer an update.
-GW_RELEASE = "2026.10.26.4"
+GW_RELEASE = "2026.10.26.5"
 
 # Download site (auto-update + "open download page").
 GW_DOWNLOAD_SITE = "https://ocr.4018.cn"
