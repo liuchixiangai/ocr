@@ -131,27 +131,70 @@ def test_the_list_has_ppocr_first(make_window, ppocr_available):
 def test_a_new_setup_defaults_to_ppocr_automatic(make_window, ppocr_available):
     window = make_window()
     assert current(window) == ("PP-OCR (automatic)", "ppocr:auto")
-    # nothing is stored until a source opens
+    # nothing is stored until a source opens; the one-shot flag is set so a
+    # later explicit Tesseract choice is not upgraded away
     assert fetch_data("scoresight.json", "ocr_model") is None
+    assert fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
 
 
 @pytest.mark.parametrize(
     ("stored", "shown"),
     [
         (0, "Tesseract: Daktronics"),
-        (1, "Tesseract: General Scoreboard"),
         (2, "Tesseract: General Fonts (English)"),
-        (3, "Tesseract: General Scoreboard Large"),
         ("ppocr:small", "PP-OCR (accurate)"),
         ("ppocr:tiny", "PP-OCR (fast)"),
     ],
 )
 def test_a_stored_choice_is_kept(make_window, ppocr_available, stored, shown):
-    # the indexes 0.1 and 0.2 stored keep their meaning
+    # Daktronics, English and an explicit PP-OCR choice are not the old
+    # General Scoreboard default, so startup does not rewrite them.
     store_data("scoresight.json", "ocr_model", stored)
     window = make_window()
     assert current(window) == (shown, stored)
     assert fetch_data("scoresight.json", "ocr_model") == stored
+    assert fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+
+
+@pytest.mark.parametrize("stored", [1, 3])
+def test_stored_general_scoreboard_becomes_ppocr_auto_on_startup(
+    make_window, ppocr_available, stored
+):
+    store_data("scoresight.json", "ocr_model", stored)
+    window = make_window()
+    assert current(window) == ("PP-OCR (automatic)", "ppocr:auto")
+    assert fetch_data("scoresight.json", "ocr_model") == "ppocr:auto"
+    assert fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
+    # switching back is kept on the next start
+    window.ui.comboBox_ocrModel.setCurrentIndex(window.ocrModelItem(stored))
+    assert fetch_data("scoresight.json", "ocr_model") == stored
+    window.close()
+    again = make_window()
+    assert current(again) == (
+        "Tesseract: General Scoreboard"
+        if stored == 1
+        else "Tesseract: General Scoreboard Large",
+        stored,
+    )
+    assert fetch_data("scoresight.json", "ocr_model") == stored
+
+
+def test_general_scoreboard_stays_until_ppocr_weights_exist(make_window, ppocr_missing):
+    store_data("scoresight.json", "ocr_model", 3)
+    window = make_window()
+    assert current(window) == ("Tesseract: General Scoreboard Large", 3)
+    assert fetch_data("scoresight.json", "ocr_model") == 3
+    assert fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is not True
+
+
+def test_a_running_source_reads_ppocr_after_the_migration(
+    running_window, ppocr_available
+):
+    store_data("scoresight.json", "ocr_model", 1)
+    window = running_window()
+    assert fetch_data("scoresight.json", "ocr_model") == "ppocr:auto"
+    assert window.currentTextDetector().model == "ppocr:auto"
+    assert current(window) == ("PP-OCR (automatic)", "ppocr:auto")
 
 
 def test_a_stored_external_model(make_window, ppocr_available, tmp_path):
@@ -177,9 +220,11 @@ def test_without_the_ppocr_models_tesseract_reads(make_window, ppocr_missing):
         assert not item_enabled(window, value)
         assert "python scripts/fetch_models.py" in item_tooltip(window, value)
     assert item_enabled(window, 1)
-    # Image cleanup applies
+    # Image cleanup applies. Nothing was stored, so there is no old General
+    # Scoreboard choice to retry once the weights exist.
     assert not window.ui.label_imageCleanupEngineNote.isVisibleTo(window)
     assert fetch_data("scoresight.json", "ocr_model") is None
+    assert fetch_data("scoresight.json", ocr_models.MIGRATED_SETTING) is True
 
 
 def test_without_onnxruntime_the_tooltip_says_so(make_window, monkeypatch):

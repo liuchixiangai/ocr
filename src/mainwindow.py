@@ -2217,7 +2217,12 @@ class MainWindow(QMainWindow):
         """The OCR model list: PP-OCR (accurate) and (fast), the bundled
         Tesseract models, then Load external model.... Each item's data is the
         value stored as ocr_model (see ocr_models); the texts are set in
-        applyOcrModelTexts."""
+        applyOcrModelTexts.
+
+        The one-shot upgrade of a stored General Scoreboard runs first, before
+        a source is restored, so the capture never starts on that old model.
+        """
+        ocr_models.migrate_legacy_general_scoreboard()
         combo = self.ui.comboBox_ocrModel
         combo.blockSignals(True)
         combo.clear()

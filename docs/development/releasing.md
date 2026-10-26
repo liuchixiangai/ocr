@@ -88,8 +88,10 @@ is doing what it should; the release was not published to the channel).
 Picture flip and the 25 fps default shipped as portable `2026.10.26.1`.
 The hardened auto-updater (retries, a required SHA-256, background
 download with resume, a safer apply script, and the Chinese 检查更新
-label) ships as `2026.10.26.2`. The next zip needs a newer string;
-`bump_gw_release.py` rejects the same version.
+label) ships as `2026.10.26.2`. Moving a stored Tesseract General
+Scoreboard or General Scoreboard Large to PP-OCR (automatic) once, when
+the weights are usable, ships as `2026.10.26.3`. The next zip needs a
+newer string; `bump_gw_release.py` rejects the same version.
 
 ```bash
 python scripts/bump_gw_release.py <newer-than-GW_RELEASE> --dry-run

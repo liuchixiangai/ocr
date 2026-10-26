@@ -14,7 +14,7 @@ ScoreSight reads the boxes with one of two OCR engines:
 - **PP-OCR**, PaddleOCR's [PP-OCRv6](https://github.com/PaddlePaddle/PaddleOCR) text recognition models (since 0.3.0, the default for new setups);
 - **Tesseract**, the [Tesseract](https://github.com/tesseract-ocr/tesseract) engine with models trained for scoreboards (the only engine before 0.3.0).
 
-Choose the model in the **OCR model** list, under **All boxes** at the bottom of the **Box** tab (on the right of the main window). The model applies to **all** boxes and is remembered between runs. A setup made with an earlier version keeps its Tesseract model until you choose another one.
+Choose the model in the **OCR model** list, under **All boxes** at the bottom of the **Box** tab (on the right of the main window). The model applies to **all** boxes and is remembered between runs. A setup that still has Tesseract: General Scoreboard or General Scoreboard Large saved (the models older versions stored when a source opened) is moved to **PP-OCR (automatic)** once, when the PP-OCR weights are installed. Daktronics, General English, a model file you loaded, and PP-OCR (accurate) or (fast) stay as saved. If you choose a Tesseract model again after that, it is kept.
 
 ## The models
 
