@@ -54,9 +54,7 @@ TWO_DIGIT_FORMATS = {
 }
 
 # Schema 4 (GuangWei OCR): Time preset 0 gains mm:ss.d; period drops ordinal
-CLOCK_FORMAT_OLD = (
-    "^(?:(?:[0-5]?\\d:[0-5]\\d)|(?:[0-5]?\\d\\.\\d))$"
-)
+CLOCK_FORMAT_OLD = "^(?:(?:[0-5]?\\d:[0-5]\\d)|(?:[0-5]?\\d\\.\\d))$"
 PERIOD_BOX_NAMES = frozenset(
     {
         "节次",
@@ -399,9 +397,7 @@ def migrate_boxes(boxes: list, origin: str, schema_version=None) -> list:
                     formats_updated += 1
                     changed = True
                 box_name = box.get("name") or ""
-                if box_name in PERIOD_BOX_NAMES and settings.get(
-                    "ordinal_indicator"
-                ):
+                if box_name in PERIOD_BOX_NAMES and settings.get("ordinal_indicator"):
                     settings["ordinal_indicator"] = False
                     changed = True
             if changed:

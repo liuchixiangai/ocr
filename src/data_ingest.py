@@ -155,8 +155,7 @@ class FrameParser(ABC):
     name: str = "base"
 
     @abstractmethod
-    def feed(self, data: bytes) -> list[ParseResult]:
-        ...
+    def feed(self, data: bytes) -> list[ParseResult]: ...
 
     def reset(self) -> None:
         pass

@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -29,15 +28,15 @@ from PySide6.QtWidgets import (
 from file_output import CSV_FILE_NAME, JSON_FILE_NAME, json_row_from_values
 
 SAMPLE_JSON = (
-    '[\n'
-    '  {\n'
+    "[\n"
+    "  {\n"
     '    "home_score": "52",\n'
     '    "away_score": "55",\n'
     '    "game_clock": "01:16.7",\n'
     '    "period": "4",\n'
     '    "shot_clock": "10"\n'
-    '  }\n'
-    ']\n'
+    "  }\n"
+    "]\n"
 )
 
 
@@ -222,7 +221,8 @@ class VmixOutboundGuide:
                 self.ui.label_7.setText("输出文件夹")
             adv_open = not self._advanced_body.isHidden()
             self._btn_toggle_adv.setText(
-                "▾ 高级格式（XML / 键值 / 每字段 txt）" if adv_open
+                "▾ 高级格式（XML / 键值 / 每字段 txt）"
+                if adv_open
                 else "▸ 高级格式（一般不用点开）"
             )
         else:
@@ -314,7 +314,9 @@ class VmixOutboundGuide:
                 )
         if status is not None and getattr(status, "last_error", None):
             parts.append(
-                f"写入出错：{status.last_error}" if zh else f"Write error: {status.last_error}"
+                f"写入出错：{status.last_error}"
+                if zh
+                else f"Write error: {status.last_error}"
             )
         self.label_status.setText("　|　".join(parts) if parts else "")
 
@@ -323,7 +325,9 @@ class VmixOutboundGuide:
             QMessageBox.information(
                 self.window,
                 "光为 OCR" if self._zh else "GuangWei OCR",
-                "还没有输出文件夹（应自动是桌面\\光为OCR输出）" if self._zh else "No output folder yet",
+                "还没有输出文件夹（应自动是桌面\\光为OCR输出）"
+                if self._zh
+                else "No output folder yet",
             )
             return
         QGuiApplication.clipboard().setText(text)
@@ -374,7 +378,9 @@ class VmixOutboundGuide:
             QMessageBox.information(
                 self.window,
                 "光为 OCR" if self._zh else "GuangWei OCR",
-                "还没有输出文件夹（应自动是桌面\\光为OCR输出）" if self._zh else "No output folder yet",
+                "还没有输出文件夹（应自动是桌面\\光为OCR输出）"
+                if self._zh
+                else "No output folder yet",
             )
             return
         from PySide6.QtGui import QDesktopServices

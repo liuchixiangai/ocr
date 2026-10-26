@@ -20,7 +20,7 @@ field ("Custom" for any other), and an expression Python can't compile (which
 the OCR ignores) is shown in red.
 """
 
-from PySide6.QtWidgets import QSpinBox, QComboBox, QLabel, QCheckBox
+from PySide6.QtWidgets import QSpinBox, QComboBox, QLabel
 
 
 import re
@@ -684,16 +684,13 @@ class BoxSettingsUIHandler:
         line_edit.insert("{{" + name + "}}")
         line_edit.setFocus()
 
-
     def ensureLedWidgets(self):
         """Create GuangWei OCR LED controls under Filtering if the .ui lacks them."""
         ui = self.ui
         if getattr(ui, "spinBox_led_stack_frames", None) is not None:
             return
         form = ui.formLayout_filtering
-        ui.label_led_stack = QLabel(
-            "LED 多帧融合 (0=关)", ui.groupBox_target_settings
-        )
+        ui.label_led_stack = QLabel("LED 多帧融合 (0=关)", ui.groupBox_target_settings)
         ui.spinBox_led_stack_frames = QSpinBox(ui.groupBox_target_settings)
         ui.spinBox_led_stack_frames.setRange(0, 15)
         ui.spinBox_led_stack_frames.setToolTip(

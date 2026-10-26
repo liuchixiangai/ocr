@@ -1,6 +1,6 @@
 from PySide6.QtGui import QGuiApplication, QStandardItemModel, QStandardItem
 from PySide6.QtCore import QCoreApplication, Qt
-from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton
 
 from theme import button_text_color, media_icon
 
@@ -149,7 +149,6 @@ class VMixUIHanlder:
         else:
             self.vmixUpdater.stop()
 
-
     def _install_vmix_guide(self):
         """Chinese how-to + one-click copy of a SetText example / mapping summary."""
         if getattr(self, "_vmix_guide_installed", False):
@@ -231,7 +230,6 @@ class VMixUIHanlder:
             "已复制",
             "已复制 vMix API 示例和当前映射摘要到剪贴板。\n不会改你现有的连接设置。",
         )
-
 
     def updatevMixTable(self, detectionTargets: list[TextDetectionTarget]):
         mapping_storage = fetch_data(SETTINGS_FILE, "vmix_mapping")

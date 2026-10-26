@@ -6,6 +6,7 @@ the frames are handed to it as the thread would."""
 
 import sys
 
+import cv2
 import numpy as np
 import pytest
 
@@ -763,6 +764,20 @@ def test_the_preview_is_uncropped_while_the_crop_is_picked(memory_storage):
         thread.requestPreview()
         thread.process_frame(frame.copy())
         assert np.array_equal(previews[-1], np.rot90(frame, -1))
+        # the crop is picked on the mirrored picture too, so the margins match
+        thread.crop.flipHorizontal = True
+        thread.requestPreview()
+        thread.process_frame(frame.copy())
+        assert np.array_equal(previews[-1], cv2.flip(np.rot90(frame, -1), 1))
+        thread.crop.flipHorizontal = False
+        thread.crop.flipVertical = True
+        thread.requestPreview()
+        thread.process_frame(frame.copy())
+        assert np.array_equal(previews[-1], cv2.flip(np.rot90(frame, -1), 0))
+        thread.crop.flipHorizontal = True
+        thread.requestPreview()
+        thread.process_frame(frame.copy())
+        assert np.array_equal(previews[-1], cv2.flip(np.rot90(frame, -1), -1))
         assert thread.adjust_frame(frame).shape[:2] == (64 - 26, 48 - 15)
     finally:
         thread.cleanup()

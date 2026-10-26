@@ -13,7 +13,6 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 import threading
 import zipfile
 from dataclasses import dataclass
@@ -158,7 +157,9 @@ def _stage_root() -> Path:
     return root
 
 
-def download_and_stage(info: GwReleaseInfo, progress: Callable[[int, int], None] | None = None) -> Path:
+def download_and_stage(
+    info: GwReleaseInfo, progress: Callable[[int, int], None] | None = None
+) -> Path:
     """Download zip, verify optional sha256, extract to stage dir. Returns stage Path."""
     stage = _stage_root()
     # clear previous
@@ -200,7 +201,9 @@ def download_and_stage(info: GwReleaseInfo, progress: Callable[[int, int], None]
         zf.extractall(extract_dir)
     # If zip contains a single top folder, use it; else the extract root.
     children = [p for p in extract_dir.iterdir()]
-    payload = children[0] if len(children) == 1 and children[0].is_dir() else extract_dir
+    payload = (
+        children[0] if len(children) == 1 and children[0].is_dir() else extract_dir
+    )
     marker = stage / "READY.txt"
     marker.write_text(
         json.dumps(
@@ -232,12 +235,12 @@ def write_apply_bat(payload: Path) -> Path:
         f'set "DST={root}"',
         # robocopy mirrors new files; /E copy subdirs; exclude stage folder
         'robocopy "%SRC%" "%DST%" /E /XO /R:2 /W:1 /NFL /NDL /NJH /NJS /XD _gw_update_stage >nul',
-        f'set "EXE=%DST%\\GuangWeiOCR.exe"',
+        'set "EXE=%DST%\\GuangWeiOCR.exe"',
         'if not exist "%EXE%" set "EXE=%DST%\\scoresight.exe"',
         'start "" "%EXE%"',
         # cleanup stage in background
         f'start /b cmd /c "timeout /t 5 /nobreak >nul & rmdir /s /q ""{_stage_root()}"" 2>nul"',
-        "del \"%~f0\" >nul 2>&1",
+        'del "%~f0" >nul 2>&1',
     ]
     bat.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
     return bat
@@ -249,7 +252,13 @@ def schedule_apply_on_quit(payload: Path) -> None:
 
     def _spawn():
         try:
-            os.spawnl(os.P_NOWAIT, os.environ.get("COMSPEC", "cmd.exe"), "cmd.exe", "/c", str(bat))
+            os.spawnl(
+                os.P_NOWAIT,
+                os.environ.get("COMSPEC", "cmd.exe"),
+                "cmd.exe",
+                "/c",
+                str(bat),
+            )
         except Exception as exc:
             logger.error("GW update apply spawn failed: %s", exc)
 
@@ -281,10 +290,7 @@ def show_update_dialog(parent, result: GwUpdateResult) -> bool:
     notes = (info.notes or "").strip()
     if len(notes) > 400:
         notes = notes[:400] + "…"
-    body = (
-        f"发现新版本 {info.version}（当前 {result.current}）。\n\n"
-        f"{notes}\n\n"
-    )
+    body = f"发现新版本 {info.version}（当前 {result.current}）。\n\n{notes}\n\n"
     if is_frozen_portable():
         body += "是否立即下载？下载完成后关闭软件将自动更新并重新启动。"
         box = QMessageBox(parent)
