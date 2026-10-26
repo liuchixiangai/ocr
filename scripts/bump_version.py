@@ -297,6 +297,31 @@ def bump(
     )
 
 
+def gw_release_reminder() -> str:
+    """Portable 光为 builds do not follow src/version.py."""
+    brand = Path(__file__).resolve().parent.parent / "src" / "product_brand.py"
+    current = "?"
+    try:
+        match = re.search(
+            r"""^GW_RELEASE\s*=\s*(['"])([^'"]+)\1""",
+            brand.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        if match:
+            current = match.group(2)
+    except OSError:
+        pass
+    return (
+        "\n光为便携包的自动更新不看 src/version.py，而看 "
+        f"src/product_brand.py 的 GW_RELEASE（当前 {current}）。\n"
+        "发布便携包必须同时：\n"
+        "  1. python scripts/bump_gw_release.py <新通道版本>\n"
+        "  2. 上传 zip 后把 ocr.4018.cn/version.json 的 version 改成同一个字符串，"
+        "并填写 zip_url 与 sha256。\n"
+        "两者相同则已安装的用户启动时不会提示更新。\n"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Set src/version.py and move CHANGELOG.md's Unreleased "
@@ -336,6 +361,7 @@ def main(argv: list[str] | None = None) -> int:
             f'  git tag -a {args.version} -m "ScoreSight {args.version}"\n'
             f"  git push origin main {args.version}"
         )
+    sys.stdout.write(gw_release_reminder())
     return 0
 
 

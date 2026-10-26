@@ -23,7 +23,9 @@ LICENSE_NAME = "MIT"
 SIMPLIFY_OUTPUT_UI = True
 
 # GuangWei channel version for ocr.4018.cn auto-update (independent of
-# upstream ScoreSight __version__). Bump this when publishing a new portable.
+# upstream ScoreSight __version__). A portable publish must bump this AND
+# ocr.4018.cn/version.json to the same newer string (scripts/bump_gw_release.py).
+# If they stay equal, installed copies will not offer an update.
 GW_RELEASE = "2026.10.25.1"
 
 # Download site (auto-update + "open download page").
@@ -46,8 +48,7 @@ QQ_GROUP_OPEN_URL = (
 )
 # Browser fallback if the mqqapi protocol is not registered.
 QQ_GROUP_WEB_URL = (
-    "https://qm.qq.com/cgi-bin/qm/qr?k=&jump_from=webapi"
-    "&authKey=&group_code=124356408"
+    "https://qm.qq.com/cgi-bin/qm/qr?k=&jump_from=webapi&authKey=&group_code=124356408"
 )
 
 # Folder name under the user's Desktop (ASCII-safe path join; name is Chinese).

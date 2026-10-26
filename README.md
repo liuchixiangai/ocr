@@ -82,6 +82,13 @@ python src\main.py
 
 ## 发行与签名
 
+发 Windows 便携包时，自动更新看的是 `src/product_brand.py` 里的 `GW_RELEASE`，不是 `src/version.py`。必须两处一起改成**比现在更新**的同一个字符串，否则已经装好的用户启动时不会提示更新：
+
+1. `python scripts/bump_gw_release.py 2026.10.26.1`（比当前 `GW_RELEASE` 新；`--dry-run` 只预览）
+2. 上传 `GuangWeiOCR-Portable.zip` 后，把 <https://ocr.4018.cn/version.json> 的 `version` 改成同一个字符串，并写上 `zip_url` 和该 zip 的 SHA-256
+
+说明见 [docs/gw-portable-release.md](docs/gw-portable-release.md)。`scripts/bump_version.py` 只改上游 ScoreSight 的版本号，结束时会提醒这一步，但不会改 `GW_RELEASE`。
+
 - 用户下载：<https://ocr.4018.cn/>
 - 计划中的 CI：`.github/workflows/windows-portable.yml`（`windows-latest`，仅 `workflow_dispatch`）。模型不全时它只说明缺什么，**不运行 PyInstaller，也不签名**。
 - 签名政策：[Code signing policy](docs/code-signing-policy.md)

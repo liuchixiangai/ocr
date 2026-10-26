@@ -162,10 +162,11 @@ asks.
 - **Update check.** A frozen portable build, on startup, requests
   `version.json` from `https://ocr.4018.cn/version.json`, then if needed
   `http://ocr.4018.cn/version.json` and `http://211.101.245.47/version.json`
-  (`src/product_brand.py`). The request sends a `GuangWeiOCR/<channel>`
-  user agent. If the user confirms an update, the app downloads the portable
-  zip from the URL in that manifest. A run from source only opens the
-  download page; it does not overwrite the git checkout.
+  (`src/product_brand.py`), and retries that round when nothing answered.
+  The request sends a `GuangWeiOCR/<channel>` user agent. If the user
+  confirms an update, the app downloads the portable zip from the URL in
+  that manifest and checks its SHA-256 before installing. A run from source
+  only opens the download page; it does not overwrite the git checkout.
 - **Operator-configured outputs.** vMix, OBS, outbound HTTP, TCP/UDP, and
   the optional serial/TCP data port run only as the operator sets them.
   The default file output is local: `Desktop\光为OCR输出\results.json`.

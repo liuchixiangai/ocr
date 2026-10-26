@@ -400,6 +400,20 @@ def test_bump_version_command(release_files, monkeypatch, capsys):
     assert "older than" in capsys.readouterr().err
 
 
+def test_bump_version_reminds_to_publish_the_guangwei_channel(
+    release_files, monkeypatch, capsys
+):
+    version_file, changelog = release_files
+    monkeypatch.setattr(bump_version, "VERSION_FILE", version_file)
+    monkeypatch.setattr(bump_version, "CHANGELOG_FILE", changelog)
+    assert bump_version.main(["0.2.0", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "GW_RELEASE" in out
+    assert "bump_gw_release.py" in out
+    assert "version.json" in out
+    assert "2026.10.25.1" in out
+
+
 def test_bumped_version_file_stays_trivially_parseable(tmp_path):
     path = tmp_path / "version.py"
     path.write_text(

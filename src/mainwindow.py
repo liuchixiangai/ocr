@@ -193,15 +193,24 @@ from update_check import (
     show_update_dialog,
     update_checks_enabled,
 )
+
 try:
     from gw_auto_update import (
+        STATUS_CHECK_FAILED,
         check_gw_update,
+        describe_check,
         is_guangwei_channel,
+        show_check_failed_dialog,
+        show_up_to_date_dialog,
         show_update_dialog as show_gw_update_dialog,
     )
 except Exception:  # pragma: no cover
+    STATUS_CHECK_FAILED = "更新检查失败"
     check_gw_update = None  # type: ignore
+    describe_check = None  # type: ignore
     is_guangwei_channel = lambda: False  # type: ignore
+    show_check_failed_dialog = None  # type: ignore
+    show_up_to_date_dialog = None  # type: ignore
     show_gw_update_dialog = None  # type: ignore
 from log_view import LogViewerDialog
 import file_output
@@ -1328,6 +1337,7 @@ class MainWindow(QMainWindow):
         self.refreshLiveStatus()
         self.updateAdjustHintVisibility()
         self.applyOcrModelTexts()
+        self.applyGuangweiHelpMenu()
         self.updateFieldsHint()
         self.updateFieldActions()
         self.updateFieldToolTips()
@@ -1365,6 +1375,17 @@ class MainWindow(QMainWindow):
         )
         if area.minimumWidth() != width:
             area.setMinimumWidth(width)
+
+    def applyGuangweiHelpMenu(self):
+        """光为 channel, Chinese UI: Help shows 检查更新 even if a .qm is stale."""
+        if not is_guangwei_channel():
+            return
+        locale = str(self.currentLocale() or "").lower()
+        if not locale.startswith("zh"):
+            return
+        action = self.ui.actionCheckForUpdates
+        action.setText("检查更新")
+        action.setStatusTip("检查光为 OCR 是否有新版本")
 
     def retranslateMenus(self):
         names = {
@@ -2462,9 +2483,11 @@ class MainWindow(QMainWindow):
     def checkForUpdates(self, manual: bool):
         """Check for updates on a background thread.
 
-        GuangWei channel (SIMPLIFY_OUTPUT_UI): query ocr.4018.cn/version.json every
-        startup (silent on 404). Upstream ScoreSight GitHub updater is used only
-        when not on the GuangWei channel.
+        GuangWei channel (SIMPLIFY_OUTPUT_UI): query ocr.4018.cn/version.json on
+        every startup (mirrors and retries; the disable flag does not skip it).
+        A manual check reports 已是最新 / 有新版 / 更新检查失败. Startup stays
+        quiet when the check cannot reach the site. Upstream ScoreSight's GitHub
+        updater runs only when not on the GuangWei channel.
         """
         if self.update_check_running:
             self.update_check_manual_pending |= manual
@@ -2492,27 +2515,14 @@ class MainWindow(QMainWindow):
         self.update_check_running = False
         manual = manual or self.update_check_manual_pending
         self.update_check_manual_pending = False
-        # GuangWei channel result
+        # GuangWei channel result. A check that raised is None (not a gw tuple).
+        if result is None and is_guangwei_channel():
+            logger.warning("GW update check failed")
+            if manual:
+                self._showGwCheckFailed()
+            return
         if isinstance(result, tuple) and len(result) == 2 and result[0] == "gw":
-            gw = result[1]
-            if gw is None:
-                return
-            if not (manual or getattr(gw, "update_available", False)):
-                # manual with no update: brief Chinese tip
-                if manual:
-                    try:
-                        from PySide6.QtWidgets import QMessageBox
-                        from product_brand import GW_RELEASE
-                        QMessageBox.information(
-                            self,
-                            "光为 OCR",
-                            f"当前已是最新版本（{GW_RELEASE}）。",
-                        )
-                    except Exception:
-                        pass
-                return
-            if show_gw_update_dialog is not None:
-                show_gw_update_dialog(self, gw)
+            self._finishGwUpdateCheck(result[1], manual)
             return
         # Upstream ScoreSight path
         if isinstance(result, tuple) and len(result) == 2 and result[0] == "upstream":
@@ -2532,6 +2542,30 @@ class MainWindow(QMainWindow):
             self.appUpdater.start if self.appUpdater.available() else None,
         )
 
+    def _showGwCheckFailed(self):
+        """Manual check only: status-bar line plus a dialog. Startup stays quiet."""
+        try:
+            self.ui.statusbar.showMessage(STATUS_CHECK_FAILED, 8000)
+        except Exception:
+            logger.debug("could not show update-check status", exc_info=True)
+        if show_check_failed_dialog is not None:
+            show_check_failed_dialog(self)
+
+    def _finishGwUpdateCheck(self, gw, manual: bool):
+        if gw is None or describe_check is None or describe_check(gw) == "failed":
+            detail = getattr(gw, "error_detail", None) if gw is not None else None
+            if detail:
+                logger.info("GW update check error: %s", detail)
+            if manual:
+                self._showGwCheckFailed()
+            return
+        outcome = describe_check(gw)
+        if outcome == "available" and show_gw_update_dialog is not None:
+            show_gw_update_dialog(self, gw)
+            return
+        if outcome == "current" and manual and show_up_to_date_dialog is not None:
+            show_up_to_date_dialog(self, gw.current)
+
     def createAboutDialog(self) -> QDialog:
         about_dialog = QDialog(self)
         about_dialog.ui = Ui_About()
@@ -2542,8 +2576,13 @@ class MainWindow(QMainWindow):
             )
         )
         about_dialog.ui.label_version.setText(
-            ("{app}  v{version}" + chr(10) + "Based on {upstream} ({license})" + chr(10) + "{url}")
-            .format(
+            (
+                "{app}  v{version}"
+                + chr(10)
+                + "Based on {upstream} ({license})"
+                + chr(10)
+                + "{url}"
+            ).format(
                 app=APP_DISPLAY_NAME,
                 version=__version__,
                 upstream=UPSTREAM_NAME,
@@ -2552,7 +2591,6 @@ class MainWindow(QMainWindow):
             )
         )
         return about_dialog
-
 
     def openAboutDialog(self):
         about_dialog = self.createAboutDialog()
@@ -2644,7 +2682,6 @@ class MainWindow(QMainWindow):
         self.readingDelegate.setPaused(paused)
         self.ui.tableWidget_boxes.viewport().update()
 
-
     def applyGuangweiSimpleOutputUi(self):
         """光为 OCR Output tab: hide the destinations switch list and the
         Folder picker row; keep writing results.json under Desktop\\光为OCR输出.
@@ -2667,7 +2704,10 @@ class MainWindow(QMainWindow):
             if hasattr(self.ui, "widget_5"):
                 self.ui.widget_5.hide()
             # File/JSON must stay on so vMix keeps getting results.json
-            if hasattr(self.ui, "checkBox_saveJson") and not self.ui.checkBox_saveJson.isChecked():
+            if (
+                hasattr(self.ui, "checkBox_saveJson")
+                and not self.ui.checkBox_saveJson.isChecked()
+            ):
                 self.ui.checkBox_saveJson.setChecked(True)
             self.ensureGuangweiOutputFolder()
             self.ensureGuangweiClockZeroLatency()
@@ -2679,7 +2719,6 @@ class MainWindow(QMainWindow):
                 pass
         except Exception:
             logger.exception("applyGuangweiSimpleOutputUi failed")
-
 
     def ensureGuangweiClockZeroLatency(self) -> None:
         """Force 比赛时间 / 24秒 (and any Time box) to LED stack=0 / stable=0.
@@ -2704,7 +2743,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 logger.exception("could not persist clock zero-latency settings")
             logger.info("光为 OCR: clock/shot-clock LED hold cleared (0 / 0ms)")
-
 
     def ensureGuangweiOutputFolder(self) -> str | None:
         """Force out_folder to Desktop\\光为OCR输出 and persist it."""
@@ -2810,7 +2848,9 @@ class MainWindow(QMainWindow):
         btn.setText(self._selectBoxButtonLabel())
         table = self.ui.tableWidget_boxes
         name_item = self.boxNameItem(name) if name else None
-        role = name_item.data(Qt.ItemDataRole.UserRole) if name_item is not None else None
+        role = (
+            name_item.data(Qt.ItemDataRole.UserRole) if name_item is not None else None
+        )
         zh = str(self.currentLocale() or "").lower().startswith("zh")
         is_template = role == TEMPLATE
         btn.setEnabled(not is_template and self.ui.groupBox_sb_info.isEnabled())
@@ -2854,7 +2894,10 @@ class MainWindow(QMainWindow):
             )
         elif role == NOT_PLACED:
             msg = (
-                ("\u5df2\u9009\u300c%s\u300d\uff1a\u8bf7\u5728\u4e2d\u95f4\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df\u3002" % name)
+                (
+                    "\u5df2\u9009\u300c%s\u300d\uff1a\u8bf7\u5728\u4e2d\u95f4\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df\u3002"
+                    % name
+                )
                 if zh
                 else QCoreApplication.translate(
                     "MainWindow",
@@ -2866,7 +2909,10 @@ class MainWindow(QMainWindow):
                 viewer.setPlacementField(name)
         else:
             msg = (
-                ("\u5df2\u9009\u300c%s\u300d\uff1a\u53ef\u62d6\u73b0\u6709\u6846\u79fb\u52a8\uff1b\u6309\u4f4f Alt \u518d\u62d6\u53ef\u91cd\u753b\u6846\u3002" % name)
+                (
+                    "\u5df2\u9009\u300c%s\u300d\uff1a\u53ef\u62d6\u73b0\u6709\u6846\u79fb\u52a8\uff1b\u6309\u4f4f Alt \u518d\u62d6\u53ef\u91cd\u753b\u6846\u3002"
+                    % name
+                )
                 if zh
                 else QCoreApplication.translate(
                     "MainWindow",
@@ -4445,7 +4491,9 @@ class MainWindow(QMainWindow):
                 self.ui.label_firstRunBoxesHint.setText(
                     "先点工具栏「四角」拉正画面，再选字段并在画面上拖框。"
                 )
-                self.ui.label_firstRunOutputs.setText("③ 勾选 JSON，一键复制路径给 vMix")
+                self.ui.label_firstRunOutputs.setText(
+                    "③ 勾选 JSON，一键复制路径给 vMix"
+                )
                 self.ui.label_firstRunOutputsHint.setText(
                     "出站 → 文本文件：勾选「给 vMix 的 JSON」，点「一键复制 JSON 路径」，到 vMix Data Sources → + → JSON 粘贴；Update 建议 100 毫秒（填 1000 会一秒一跳）"
                 )
@@ -4463,10 +4511,14 @@ class MainWindow(QMainWindow):
             if getattr(self, "vmixOutboundGuide", None) is not None:
                 self.vmixOutboundGuide.apply_texts(zh)
                 self.vmixOutboundGuide.refresh(self.fileOutput.status())
-            if getattr(self, "vmixUiHandler", None) is not None and hasattr(self.vmixUiHandler, "apply_vmix_guide_texts"):
+            if getattr(self, "vmixUiHandler", None) is not None and hasattr(
+                self.vmixUiHandler, "apply_vmix_guide_texts"
+            ):
                 self.vmixUiHandler.apply_vmix_guide_texts(zh)
             elif zh:
-                self.ui.checkBox_saveJson.setText("给 vMix 的 JSON（推荐）· results.json")
+                self.ui.checkBox_saveJson.setText(
+                    "给 vMix 的 JSON（推荐）· results.json"
+                )
                 self.ui.checkBox_savePerBoxTxt.setText("每个字段单独 .txt（不推荐）")
         except Exception:
             pass

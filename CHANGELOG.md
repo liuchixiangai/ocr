@@ -21,6 +21,7 @@ not enabled.
 
 ### Fixed
 
+- **光为 OCR 自动更新。** 启动时仍会检查下载站（几处地址都会试，失败会再试），手动「检查更新」会分别说明已是最新、有新版本或网络失败，不再把连不上服务器说成已经是最新。下载大更新包时窗口仍可操作；中途失败会接着下，取消会删掉半成品，并且必须通过 SHA-256 才安装。关闭软件后的更新脚本会等旧进程退出，必要时结束它；复制失败或找不到程序时会提示并打开下载站。发布便携包时必须同时提高 `GW_RELEASE` 和网站上的 `version.json`，否则已安装的用户不会收到更新。
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
 
 ## [0.4.1] - 2026-10-22
