@@ -1,18 +1,7 @@
 MIT License
 
 Copyright (c) 2024 OCC AI: Open tools for Content Creators and Streamers
-
-光为 OCR (GuangWei OCR) is a fork of ScoreSight
-(https://github.com/royshil/scoresight). The ScoreSight copyright notice
-above is retained.
-
 Copyright (c) 2026 liuchixiangai and 桐城市六尺巷网络有限公司
-Modifications in this repository (Chinese UI, vMix / 芯象 outbound, LED
-debounce, Windows portable packaging, and the ocr.4018.cn update channel)
-are by liuchixiangai / 桐城市六尺巷网络有限公司 and are released under the
-same MIT License. The Authenticode publisher for a future SignPath
-Foundation signature is SignPath Foundation, which is separate from this
-copyright notice.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,3 +20,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+End of terms and conditions
+
+光为 OCR (GuangWei OCR) is a fork of ScoreSight
+(https://github.com/royshil/scoresight). The ScoreSight copyright notice
+above is retained.
+
+Modifications in this repository (Chinese UI, vMix / 芯象 outbound, LED
+debounce, Windows portable packaging, and the ocr.4018.cn update channel)
+are by liuchixiangai / 桐城市六尺巷网络有限公司 and are released under the
+same MIT License. The Authenticode publisher for a future SignPath
+Foundation signature is SignPath Foundation, which is separate from this
+copyright notice.
