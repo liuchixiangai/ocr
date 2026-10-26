@@ -349,10 +349,10 @@ def ocr_text(snapshot: StatusSnapshot) -> str:
         return QCoreApplication.translate("StatusBar", "Loading PP-OCR…")
     if snapshot.ocr_target:
         text = QCoreApplication.translate(
-            "StatusBar", "Reading {rate}/s of {target}"
+            "StatusBar", "OCR {rate}/s of {target}"
         ).format(rate=f"{snapshot.ocr_rate:.1f}", target=f"{snapshot.ocr_target:g}")
     else:
-        text = QCoreApplication.translate("StatusBar", "Reading {rate}/s").format(
+        text = QCoreApplication.translate("StatusBar", "OCR {rate}/s").format(
             rate=f"{snapshot.ocr_rate:.1f}"
         )
     if ocr_fallback(snapshot):
@@ -447,8 +447,10 @@ def ocr_tooltip(snapshot: StatusSnapshot) -> str:
     computer that can't keep up or a PP-OCR that couldn't load."""
     tooltip = QCoreApplication.translate(
         "StatusBar",
-        "How many times per second the boxes are read, and the Detections / s "
-        "setting. The preview picture refreshes about once per second on purpose.",
+        "How many times per second the boxes are read (OCR), and the Detections / s "
+        "setting. This is not the camera or file frame rate: that is the source's "
+        "frames per second. The preview aims for about 15 pictures per second when "
+        "the computer can keep up.",
     )
     if ocr_loading(snapshot):
         tooltip += "\n" + QCoreApplication.translate(
@@ -663,7 +665,9 @@ class MainStatusBar(QObject):
             f"{_colored(glyph, color)}&nbsp;{html.escape(source_text(snapshot), quote=False)}"
         )
         tooltip = QCoreApplication.translate(
-            "StatusBar", "The video source, its resolution and frame rate"
+            "StatusBar",
+            "The video source, its resolution and capture frame rate (how fast "
+            "pictures arrive, not how often the boxes are read)",
         )
         adjustments = adjustments_text(snapshot)
         if adjustments:

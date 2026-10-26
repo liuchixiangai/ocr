@@ -52,7 +52,7 @@ There is no fixed limit. Each box costs CPU on every detection cycle, so dozens 
 
 ## How fast is it?
 
-Up to 15 readings per second (the **Detections / s** slider), with all boxes read on every cycle. The preview picture refreshes about once per second on purpose. It doesn't affect how fast values are read or sent.
+Up to 15 readings per second (the **Detections / s** slider), with all boxes read on every cycle. The preview picture aims for about 15 updates per second when the computer can keep up, for a camera and for a video file. That rate is separate from how often the boxes are read.
 
 ## Which languages is the interface available in?
 

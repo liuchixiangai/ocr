@@ -99,13 +99,19 @@ def run_frames(thread, seconds, fps=30):
 # --- detection cadence (#53) -------------------------------------------------------------
 
 
+def assert_continuous_preview(count, seconds):
+    """About 15 previews/s, and at least the 12/s a person reads as motion."""
+    assert count >= seconds * 12
+    assert count <= seconds * camera_thread.PREVIEW_TARGET_FPS + 3
+
+
 def test_cadence_of_one_per_second_processes_frames(make_thread, make_target):
     thread = make_thread(cadence=1)
     thread.detectionTargetsStorage.add_item(make_target("Home Score"))
     run_frames(thread, 3.5)
-    # OCR and preview at t = 0, 1, 2, 3 s
+    # OCR at t = 0, 1, 2, 3 s; the preview is not tied to that cadence
     assert len(thread.results) == 4
-    assert len(thread.previews) == 4
+    assert_continuous_preview(len(thread.previews), 3.5)
     assert thread.ups == pytest.approx(1.0, abs=0.2)
 
 
@@ -116,8 +122,8 @@ def test_cadence_sets_the_ocr_rate(make_thread, make_target, cadence):
     run_frames(thread, 4, fps=60)
     # a pass is due on the first frame at least 1/cadence after the last one
     assert 3 * cadence <= len(thread.results) <= 4 * cadence + 1
-    # the preview stays at about one per second
-    assert len(thread.previews) == pytest.approx(4, abs=1)
+    # preview stays near 15/s at any detection cadence
+    assert_continuous_preview(len(thread.previews), 4)
 
 
 def test_preview_does_not_wait_for_the_ocr_cadence(make_thread, make_target):
@@ -130,7 +136,47 @@ def test_preview_does_not_wait_for_the_ocr_cadence(make_thread, make_target):
     assert len(thread.results) == 1
     run_frames(thread, 5)
     assert len(thread.results) == 1
-    assert len(thread.previews) >= 5
+    assert_continuous_preview(len(thread.previews), 5)
+
+
+@pytest.mark.parametrize(
+    "camera_type",
+    [CameraInfo.CameraType.OPENCV, CameraInfo.CameraType.FILE],
+)
+def test_cameras_and_files_preview_continuously(make_thread, camera_type):
+    """The window used to show about one picture a second on purpose, so a
+    vMix Video camera and a sample file both stepped like a slideshow."""
+    thread = make_thread(camera_type=camera_type, camera_id=0)
+    assert thread.preview_frame_interval == pytest.approx(
+        camera_thread.PREVIEW_INTERVAL_MS
+    )
+    assert thread.preview_frame_interval <= 1000 / 12
+    # playback stays at the capture loop (~33 fps), not the old 1/s preview
+    assert thread.frame_interval == pytest.approx(
+        camera_thread.CAPTURE_FRAME_INTERVAL_MS
+    )
+    run_frames(thread, 1.0, fps=30)
+    assert_continuous_preview(len(thread.previews), 1.0)
+
+
+def test_a_busy_preview_is_not_queued(make_thread):
+    thread = make_thread(camera_type=CameraInfo.CameraType.OPENCV, camera_id=0)
+    thread.coalesce_previews = True
+    thread.preview_busy = True
+    run_frames(thread, 1.0, fps=30)
+    assert thread.previews == []
+    thread.preview_busy = False
+    thread._clock.now += 0.2
+    thread.process_frame(color_frame())
+    assert len(thread.previews) == 1
+
+
+def test_screen_capture_reads_at_the_preview_rate(make_thread):
+    thread = make_thread(camera_type=CameraInfo.CameraType.SCREEN_CAPTURE)
+    assert thread.frame_interval == pytest.approx(thread.preview_frame_interval)
+    assert thread.preview_frame_interval == pytest.approx(
+        camera_thread.PREVIEW_INTERVAL_MS
+    )
 
 
 def test_long_gaps_are_measured_in_full(make_thread, make_target):
@@ -250,7 +296,8 @@ def test_rotation_and_binary_preview(make_thread, make_target):
     thread.show_binary = True
     run_frames(thread, 2.1)
     # the OCR frame's preview comes from the OCR pass, the others are rendered
-    assert [p.shape for p in thread.previews] == [(320, 240)] * 3
+    assert_continuous_preview(len(thread.previews), 2.1)
+    assert [p.shape for p in thread.previews] == [(320, 240)] * len(thread.previews)
     assert len(thread.textDetector.calls) == 1
     assert thread.textDetector.calls[0][3] is thread.previews[0]
     assert thread.frame_size == (320, 240)  # the source frame, before rotation
@@ -270,7 +317,7 @@ def test_no_boxes_no_ocr(make_thread):
     thread = make_thread()
     run_frames(thread, 1.5)
     assert thread.textDetector.calls == []
-    assert len(thread.previews) == 2
+    assert_continuous_preview(len(thread.previews), 1.5)
 
 
 def test_boxes_are_snapshotted_per_frame(make_thread, make_target):
@@ -639,15 +686,18 @@ class FakeVideoCapture:
     instances = []
     # backends this "OpenCV build" doesn't have: opening with them fails
     missing_backends = set()
+    # the size a device reports before any CAP_PROP_FRAME_* is set
+    initial_size = (640.0, 480.0)
 
     def __init__(self, capture_id, backend=cv2.CAP_ANY, params=None):
         self.capture_id = capture_id
         self.backend = backend
         self.params = params
         self.calls = []
+        width, height = FakeVideoCapture.initial_size
         self.props = {
-            cv2.CAP_PROP_FRAME_WIDTH: 640.0,
-            cv2.CAP_PROP_FRAME_HEIGHT: 480.0,
+            cv2.CAP_PROP_FRAME_WIDTH: width,
+            cv2.CAP_PROP_FRAME_HEIGHT: height,
             cv2.CAP_PROP_FPS: 30.0,
         }
         self.released = False
@@ -676,6 +726,7 @@ class FakeVideoCapture:
 def fake_video_capture(monkeypatch):
     FakeVideoCapture.instances = []
     FakeVideoCapture.missing_backends = set()
+    FakeVideoCapture.initial_size = (640.0, 480.0)
     monkeypatch.setattr(cv2, "VideoCapture", FakeVideoCapture)
     return FakeVideoCapture
 
@@ -727,17 +778,98 @@ def test_stored_video_settings_are_applied_when_a_camera_opens(fake_video_captur
         (cv2.CAP_PROP_FRAME_WIDTH, 1280),
         (cv2.CAP_PROP_FRAME_HEIGHT, 720),
         (cv2.CAP_PROP_FPS, 60.0),
+        (cv2.CAP_PROP_BUFFERSIZE, 1),
     ]
     capture.release()
 
 
-def test_without_a_stored_resolution_the_highest_is_selected(fake_video_capture):
+def test_without_a_stored_resolution_the_driver_size_is_kept(fake_video_capture):
     store_video_settings(width=-1, height=-1, backend=cv2.CAP_ANY, fourcc="NULL")
     OpenCVVideoCaptureWithSettings(0, cv2.CAP_DSHOW, apply_video_settings=True)
     [device] = fake_video_capture.instances
     assert device.backend == cv2.CAP_DSHOW  # "Auto" means the platform default
-    assert device.calls[0] == "read"
+    assert device.calls[0] == "read"  # learn the negotiated size, then leave it
+    assert not any(
+        isinstance(call, tuple) and call[0] == cv2.CAP_PROP_FRAME_WIDTH
+        for call in device.calls
+    )
+    assert (cv2.CAP_PROP_BUFFERSIZE, 1) in device.calls
+    assert not any(
+        isinstance(call, tuple) and call[0] == cv2.CAP_PROP_FPS for call in device.calls
+    )
+
+
+def test_an_oversized_open_is_capped_and_a_saved_size_wins(fake_video_capture):
+    fake_video_capture.initial_size = (3840.0, 2160.0)
+    OpenCVVideoCaptureWithSettings(
+        0, cv2.CAP_DSHOW, apply_video_settings=True, source_name="HD Pro Webcam"
+    )
+    [device] = fake_video_capture.instances
     assert (cv2.CAP_PROP_FRAME_WIDTH, 1920) in device.calls
+    assert (cv2.CAP_PROP_FRAME_HEIGHT, 1080) in device.calls
+
+    fake_video_capture.instances.clear()
+    OpenCVVideoCaptureWithSettings(
+        0, cv2.CAP_DSHOW, apply_video_settings=True, source_name="vMix Video"
+    )
+    [virtual] = fake_video_capture.instances
+    assert (cv2.CAP_PROP_FRAME_WIDTH, 1280) in virtual.calls
+    assert (cv2.CAP_PROP_FRAME_HEIGHT, 720) in virtual.calls
+
+    # Video Settings already at 1280×720, or a saved 1920, is what was asked for
+    fake_video_capture.instances.clear()
+    store_video_settings(width=1920, height=1080)
+    OpenCVVideoCaptureWithSettings(
+        0, cv2.CAP_DSHOW, apply_video_settings=True, source_name="vMix Video"
+    )
+    [saved] = fake_video_capture.instances
+    assert (cv2.CAP_PROP_FRAME_WIDTH, 1920) in saved.calls
+    assert (cv2.CAP_PROP_FRAME_WIDTH, 1280) not in saved.calls
+    assert saved.calls[0] != "read"
+
+
+def test_a_deep_camera_queue_is_drained_to_the_newest_frame(
+    fake_video_capture, monkeypatch
+):
+    class DeepBuffer(FakeVideoCapture):
+        def set(self, prop, value):
+            self.calls.append((prop, value))
+            if prop == cv2.CAP_PROP_BUFFERSIZE:
+                self.props[prop] = 4  # the driver keeps a queue
+                return False
+            self.props[prop] = value
+            return True
+
+        def read(self):
+            self.calls.append("read")
+            return True, self._frame()
+
+        def grab(self):
+            self.calls.append("grab")
+            return True
+
+        def retrieve(self):
+            self.calls.append("retrieve")
+            return True, self._frame()
+
+        def _frame(self):
+            self.last = getattr(self, "last", 0) + 1
+            frame = color_frame()
+            frame[0, 0, 0] = self.last
+            return frame
+
+    monkeypatch.setattr(cv2, "VideoCapture", DeepBuffer)
+    capture = OpenCVVideoCaptureWithSettings(
+        0, cv2.CAP_DSHOW, apply_video_settings=True, source_name="vMix Video"
+    )
+    device = fake_video_capture.instances[-1]
+    assert capture._stale_grabs == camera_thread.MAX_STALE_GRABS
+    device.calls.clear()
+    device.last = 10
+    ok, frame = capture.read()
+    assert ok and frame[0, 0, 0] == 13  # read, then two queued frames dropped
+    assert device.calls.count("grab") == 2
+    capture.release()
 
 
 def test_files_and_urls_get_no_video_settings(fake_video_capture):
@@ -763,6 +895,7 @@ def test_settings_changes_are_applied_by_the_reading_thread(fake_video_capture):
         (cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")),
         (cv2.CAP_PROP_FRAME_WIDTH, 1280),
         (cv2.CAP_PROP_FRAME_HEIGHT, 720),
+        (cv2.CAP_PROP_BUFFERSIZE, 1),
         "read",
     ]
 

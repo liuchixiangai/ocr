@@ -36,8 +36,14 @@ RUNNING = StatusSnapshot(
 
 
 def test_a_running_source():
+    from status_bar import ocr_tooltip
+
     assert source_text(RUNNING) == "scoreboard.avi · 1280×720 · 32.5 fps"
-    assert ocr_text(RUNNING) == "Reading 4.7/s of 5"
+    assert ocr_text(RUNNING) == "OCR 4.7/s of 5"
+    tip = ocr_tooltip(RUNNING)
+    assert "once per second" not in tip
+    assert "not the camera or file frame rate" in tip
+    assert "15" in tip
     assert not ocr_is_slow(RUNNING)
     assert paused_text(RUNNING) == ""
     assert http_text(RUNNING) == "http://192.168.1.20:18099"
@@ -64,7 +70,7 @@ def test_a_slow_ocr_rate_is_flagged():
         source_name="cam", source_state=SOURCE_RUNNING, ocr_rate=2.0, ocr_target=5
     )
     assert ocr_is_slow(slow)
-    assert ocr_text(slow) == "Reading 2.0/s of 5"
+    assert ocr_text(slow) == "OCR 2.0/s of 5"
 
 
 def test_paused_time():
@@ -124,7 +130,7 @@ def test_the_status_bar_widgets(qapp, monkeypatch):
     try:
         widgets.update(RUNNING)
         assert "scoreboard.avi · 1280×720" in widgets.label_source.text()
-        assert widgets.label_ocr.text() == "Reading 4.7/s of 5"
+        assert widgets.label_ocr.text() == "OCR 4.7/s of 5"
         assert widgets.label_paused.isHidden()
         assert widgets.label_http.text() == "http://192.168.1.20:18099"
         assert "http://localhost:18099" in widgets.label_http.toolTip()
@@ -243,9 +249,7 @@ def test_a_ppocr_that_didnt_load():
         ocr_engine_error="ImportError: DLL load failed",
     )
     assert ocr_fallback(snapshot)
-    assert (
-        ocr_text(snapshot) == "Reading 4.7/s of 5 · with Tesseract: PP-OCR didn't load"
-    )
+    assert ocr_text(snapshot) == "OCR 4.7/s of 5 · with Tesseract: PP-OCR didn't load"
     assert "DLL load failed" in ocr_tooltip(snapshot)
     assert "Tesseract (General Scoreboard)" in ocr_tooltip(snapshot)
 

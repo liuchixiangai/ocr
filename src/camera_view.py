@@ -51,7 +51,7 @@ def osd_text(fps, ups, pps, width, height) -> str:
     """The statistics overlay's lines."""
     return QCoreApplication.translate(
         "CameraView",
-        "Frames/s: {fps}\nUpdates/s: {ups}\nPreviews/s: {pps}\n"
+        "Frames/s: {fps} (capture)\nOCR/s: {ups}\nPreviews/s: {pps}\n"
         "Resolution: {width}×{height}",
     ).format(
         fps=f"{fps:.1f}",
@@ -119,6 +119,9 @@ class CameraView(QGraphicsView):
         self.setBackgroundBrush(VIEWER_BACKGROUND)
         self.camera_info = camera_index
         self.timerThread = TimerThread(camera_index, detectionTargetsStorage)
+        # Drop a preview that arrives while the previous one is still painting,
+        # so the queue cannot fill with stale pictures.
+        self.timerThread.coalesce_previews = True
         self.timerThread.update_signal.connect(self.update_pixmap)
         self.timerThread.update_error.connect(self.error_event)
         self.timerThread.processing_error.connect(self.show_error_text)
@@ -201,7 +204,16 @@ class CameraView(QGraphicsView):
         self.placeOSD()
 
     def update_pixmap(self, frame):
-        if self.timerThread is None:
+        thread = self.timerThread
+        try:
+            self._show_frame(frame, thread)
+        finally:
+            # Allow the next preview even if painting raised.
+            if thread is not None:
+                thread.preview_busy = False
+
+    def _show_frame(self, frame, thread):
+        if thread is None:
             return
 
         # check if frame is not contiguous
@@ -251,7 +263,7 @@ class CameraView(QGraphicsView):
 
         # the source's resolution, as read by the capture thread (asking the
         # capture would wait for its current read)
-        self.camera_width, self.camera_height = self.timerThread.frame_size
+        self.camera_width, self.camera_height = thread.frame_size
 
         if not self.firstFrameReceived:
             self.firstFrameReceived = True
@@ -261,9 +273,9 @@ class CameraView(QGraphicsView):
         if self.showOSD:
             self.osd.setText(
                 osd_text(
-                    self.timerThread.fps,
-                    self.timerThread.ups,
-                    self.timerThread.pps,
+                    thread.fps,
+                    thread.ups,
+                    thread.pps,
                     self.camera_width,
                     self.camera_height,
                 )

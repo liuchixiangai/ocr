@@ -1793,7 +1793,7 @@ def test_the_status_bar(make_window, monkeypatch, patched):
     bar = window.statusBarWidgets
     assert "rtsp://10.0.1.200:554/11 · 1280×720 · 30.0 fps" in bar.label_source.text()
     assert "pw" not in bar.label_source.text()
-    assert bar.label_ocr.text() == "Reading 4.8/s of 5"
+    assert bar.label_ocr.text() == "OCR 4.8/s of 5"
     assert bar.label_http.text() == "http://192.168.1.20:18100"
     assert "http://localhost:18100" in bar.label_http.toolTip()
 

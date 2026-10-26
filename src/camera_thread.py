@@ -63,6 +63,26 @@ ERROR_REPORT_INTERVAL_S = 5.0
 # How long stopping the capture waits for the OCR cycle in progress.
 OCR_STOP_TIMEOUT_S = 2.0
 
+# The capture loop sleeps toward this (~33 fps). It is the rate frames are
+# read, including a video file's playback, and it is not the preview rate.
+CAPTURE_FRAME_INTERVAL_MS = 30.0
+# Pictures shown per second when the computer keeps up. 1000 ms made a live
+# camera, a vMix virtual camera and a video file all step once a second even
+# while frames were being read. OCR stays on the detection cadence.
+PREVIEW_TARGET_FPS = 15
+PREVIEW_INTERVAL_MS = 1000.0 / PREVIEW_TARGET_FPS
+
+# No saved camera size used to climb toward 1920×1080. A driver that opens at
+# 4K (a full court) is asked down to this. Names with vMix / Virtual, whose
+# picture is often the whole program, stop at 720p. A size the user saved is
+# applied as stored, including 1280×720 chosen in Video Settings.
+PHYSICAL_CAMERA_CEILING = (1920, 1080)
+MODEST_CAMERA_SIZE = (1280, 720)
+# Ask DirectShow / MSMF for a one-frame queue. If the device still reports a
+# deeper queue, drop at most this many already-buffered frames per read.
+# Extra grab() calls wait when the queue is empty, so this stays small.
+MAX_STALE_GRABS = 2
+
 
 def set_process_env(name: str, value: str | None):
     """Set (or with None, remove) an environment variable for this process,
@@ -232,48 +252,101 @@ def get_resolution(cap):
     return width, height
 
 
-# Function to set the camera to the highest resolution
-def set_camera_highest_resolution(cap):
-    # List of common resolutions to try
-    resolutions = [(1920, 1080), (1280, 720), (1024, 768), (800, 600), (640, 480)]
+def prefers_modest_camera_size(source_name: str | None) -> bool:
+    """Virtual program outputs (vMix Video, OBS Virtual Camera, …)."""
+    text = (source_name or "").casefold()
+    return "vmix" in text or "virtual" in text
 
-    # grab one frame to make sure the camera is initialized
-    ret, _ = cap.read()
-    if not ret:
+
+def camera_open_ceiling(source_name: str | None) -> tuple[int, int]:
+    """The largest size to request when the user has not saved one."""
+    if prefers_modest_camera_size(source_name):
+        return MODEST_CAMERA_SIZE
+    return PHYSICAL_CAMERA_CEILING
+
+
+def cap_unbounded_resolution(cap, source_name: str | None) -> None:
+    """Leave the driver's size unless it is above the ceiling.
+
+    Nothing saved used to climb toward 1920×1080, and a driver already at 4K
+    was left there. Scoreboard OCR does not need a 4K picture of the whole
+    court. A size the user saved is applied by the caller instead.
+    """
+    try:
+        ok, _frame = cap.read()
+    except cv2.error:
+        logger.debug("Camera resolution probe failed", exc_info=True)
+        return
+    if not ok:
         logger.warning("Error: camera not initialized")
         return
-
-    # grab the current resolution
     width, height = get_resolution(cap)
-
-    # If the current resolution is already the highest, return
-    if width >= resolutions[0][0] and height >= resolutions[0][1]:
+    width_n = _positive(width)
+    height_n = _positive(height)
+    if width_n is None or height_n is None:
+        return
+    ceiling = camera_open_ceiling(source_name)
+    if width_n <= ceiling[0] and height_n <= ceiling[1]:
         logger.info(
-            "Camera is already at the highest resolution: %d x %d", width, height
+            "Camera opened at the driver's resolution: %d x %d",
+            int(width_n),
+            int(height_n),
         )
         return
+    logger.info(
+        "Camera opened at %d x %d; asking for %d x %d",
+        int(width_n),
+        int(height_n),
+        ceiling[0],
+        ceiling[1],
+    )
+    set_resolution(cap, ceiling[0], ceiling[1])
 
-    # Try each resolution and select the highest one that works
-    highest_res = resolutions[0]
-    for resolution in resolutions:
-        logger.debug("Trying camera resolution: %d x %d", resolution[0], resolution[1])
-        set_resolution(cap, *resolution)
-        test_width, test_height = get_resolution(cap)
-        logger.debug("Found camera resolution: %d x %d", test_width, test_height)
-        # if found resolution is within close range of the target resolution, use it
-        if (
-            abs(test_width - resolution[0]) < 100
-            and abs(test_height - resolution[1]) < 100
-        ):
-            logger.debug(
-                "Camera highest resolution set to: %d x %d", test_width, test_height
-            )
-            highest_res = (test_width, test_height)
+
+def request_latest_frame_buffer(capture) -> int:
+    """Ask for a one-frame queue. Returns how many extra frames to drop per
+    read when the device still reports a deeper queue, else 0.
+
+    A report of 1, 0 or an unsupported property means one read() is enough:
+    further grab() calls would wait for frames that are not queued yet.
+    """
+    try:
+        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except cv2.error:
+        logger.debug("CAP_PROP_BUFFERSIZE is not accepted", exc_info=True)
+        return 0
+    try:
+        reported = float(capture.get(cv2.CAP_PROP_BUFFERSIZE))
+    except (cv2.error, TypeError, ValueError):
+        return 0
+    if not math.isfinite(reported) or reported <= 1:
+        return 0
+    return min(int(reported) - 1, MAX_STALE_GRABS)
+
+
+def read_newest_frame(capture, extra: int):
+    """read(), then drop up to `extra` frames already queued behind it.
+
+    Used only when the device reported a queue deeper than one frame, and
+    only for camera devices. Files, URLs and NDI use a plain read().
+    """
+    ok, frame = capture.read()
+    if not ok or frame is None or extra <= 0:
+        return ok, frame
+    for _ in range(extra):
+        try:
+            grabbed = capture.grab()
+        except cv2.error:
             break
-
-    # Set the highest resolution
-    logger.info("Setting camera resolution to: %d x %d", highest_res[0], highest_res[1])
-    set_resolution(cap, *highest_res)
+        if not grabbed:
+            break
+        try:
+            newer_ok, newer = capture.retrieve()
+        except cv2.error:
+            break
+        if newer_ok and newer is not None and getattr(newer, "size", 0):
+            ok, frame = True, newer
+    return ok, frame
 
 
 # a reading of zero: 0, 00, 0:00, 0.0 (with "When blank": blank or zero)
@@ -367,17 +440,20 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         capture_backend: int = cv2.CAP_ANY,
         params: list[int] | None = None,
         apply_video_settings: bool = False,
+        source_name: str | None = None,
     ):
         super().__init__(capture_id, capture_backend)
         self.video_capture_mutex = threading.Lock()
         self.params = list(params) if params else []
         self.apply_video_settings = apply_video_settings
+        self.source_name = source_name
         self.default_backend = capture_backend
         self.backend = capture_backend
         self.fps = None
         self.width = None
         self.height = None
         self.fourcc = None
+        self._stale_grabs = 0
         self._reopen_requested = False
         self._apply_requested = False
         self._subscriptions = []
@@ -464,10 +540,16 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         if width is not None and height is not None:
             set_resolution(capture, int(width), int(height))
         elif opening:
-            set_camera_highest_resolution(capture)
+            # No saved size: keep the driver default, or cap a 4K / virtual
+            # open. Do not climb toward the highest mode the device offers.
+            cap_unbounded_resolution(capture, self.source_name)
+        # Nothing saved (None) leaves the driver's rate. A stored 1 is 25.
+        # Do not set CAP_PROP_FPS when the user has not chosen one.
         fps = fps_for_capture(self.fps)
         if fps is not None:
             capture.set(cv2.CAP_PROP_FPS, fps)
+        # After the format, so a mode change does not restore a deep queue.
+        self._stale_grabs = request_latest_frame_buffer(capture)
 
     def _apply_pending_changes(self):
         # called by the reading thread with the mutex held
@@ -513,6 +595,10 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
     def read(self):
         with self.video_capture_mutex:
             self._apply_pending_changes()
+            # Files and URLs (apply_video_settings off) keep a plain read so
+            # playback is not drained or blocked waiting on a camera queue.
+            if self._stale_grabs > 0:
+                return read_newest_frame(self.video_capture, self._stale_grabs)
             return self.video_capture.read()
 
     def release(self):
@@ -644,14 +730,24 @@ class TimerThread(QThread):
         self.should_stop = False
         # monotonic clock (seconds); replaceable in tests
         self._clock = time.monotonic
-        self.frame_interval = 30
+        # Screen capture's read is a full window copy. Matching the preview
+        # rate avoids copying frames that are thrown away. Cameras and video
+        # files stay at the capture rate so a file is not played as a slideshow.
+        if camera_info.type == CameraInfo.CameraType.SCREEN_CAPTURE:
+            self.frame_interval = PREVIEW_INTERVAL_MS
+        else:
+            self.frame_interval = CAPTURE_FRAME_INTERVAL_MS
         self.update_frame_interval = cadence_to_interval_ms(
             fetch_data(SETTINGS_FILE, "detection_cadence", DEFAULT_DETECTION_CADENCE)
         )
         subscribe_to_data(
             SETTINGS_FILE, "detection_cadence", self.setUpdateFrameInterval
         )
-        self.preview_frame_interval = 1000
+        self.preview_frame_interval = PREVIEW_INTERVAL_MS
+        # The viewer sets this: skip a preview whose paint is still on the GUI
+        # thread, instead of queuing stale pictures behind it.
+        self.coalesce_previews = False
+        self.preview_busy = False
         self.fps = 1000 / self.frame_interval  # frames per second
         self.pps = 1000 / self.preview_frame_interval  # previews per second
         self.ups = 1000 / max(self.update_frame_interval, 1)  # updates per second
@@ -675,9 +771,10 @@ class TimerThread(QThread):
         self.preview_uncropped = False
         # When the boxes last moved with the crop (boxesMoved), on _clock
         self.boxes_moved_at: float | None = None
-        # The last frame transformed (at least once a second), as read and as
-        # the boxes see it (rotated, cropped, stabilized and corrected): what
-        # Auto crop and Auto layout look at (latestRotatedFrame, latestPicture)
+        # The last frame transformed (about 15 times a second, or on an OCR
+        # pass), as read and as the boxes see it (rotated, cropped, stabilized
+        # and corrected): what Auto crop and Auto layout look at
+        # (latestRotatedFrame, latestPicture)
         self.latest_source = None
         self.latest_picture = None
         self.last_frame_timestamp = None
@@ -772,7 +869,10 @@ class TimerThread(QThread):
         # a camera device: on windows use the dshow backend by default
         backend = cv2.CAP_DSHOW if platform.system() == "Windows" else cv2.CAP_ANY
         return OpenCVVideoCaptureWithSettings(
-            self.camera_info.id, backend, apply_video_settings=True
+            self.camera_info.id,
+            backend,
+            apply_video_settings=True,
+            source_name=self.camera_info.description,
         )
 
     def connect_video_capture(self) -> bool:
@@ -934,9 +1034,11 @@ class TimerThread(QThread):
 
     def process_frame(self, frame_rgb):
         """Process a frame read from the source: on the detection cadence read
-        its boxes (OCR), and about once a second emit it as the preview. The
-        two are independent, so the preview (and with it the first-frame signal
-        that enables the UI) comes at any detection cadence.
+        its boxes (OCR), and about 15 times a second emit it as the preview.
+        The two are independent, so the preview (and with it the first-frame
+        signal that enables the UI) comes at any detection cadence. Cameras,
+        virtual cameras and video files share that preview rate. A file's
+        playback speed stays the capture loop's rate, not the old 1/s preview.
 
         While the capture runs (run()), the OCR runs on its own thread
         (OcrWorker), so a slow OCR cycle never holds up reading frames: a live
@@ -969,6 +1071,11 @@ class TimerThread(QThread):
             self.last_emit_time is None
             or (now - self.last_emit_time) * 1000.0 >= self.preview_frame_interval
         )
+        # One picture is painted at a time. Queueing the next while that paint
+        # is still on the GUI thread is what makes a live view lag a beat
+        # behind, then jump. Skip this preview; the next free one is current.
+        if preview_due and self.coalesce_previews and self.preview_busy:
+            preview_due = False
         if not update_due and not preview_due:
             # dump this frame since not enough time has passed
             return
@@ -1008,6 +1115,8 @@ class TimerThread(QThread):
                         + (1.0 - self.fps_alpha) * self.pps
                     )
             self.last_emit_time = now
+            if self.coalesce_previews:
+                self.preview_busy = True
             if self.preview_uncropped:
                 # a new crop is being dragged on the whole picture
                 self.update_signal.emit(self.orient_frame(source))
