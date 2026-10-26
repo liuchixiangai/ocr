@@ -70,7 +70,7 @@ def test_current_resolution_is_preselected(dialog):
     assert capture.sets == []
     # all the properties are read while waiting for the capture thread once
     assert capture.lock_count == 1
-    assert "30" in dialog.ui.label_captureHint.text()
+    assert "25" in dialog.ui.label_captureHint.text()
     # the dialog itself isn't shown; isHidden is the label's own flag
     assert dialog.ui.label_fpsNote.isHidden()
 
@@ -103,18 +103,18 @@ def test_rgb24_guid_is_shown_as_a_name_and_cannot_be_chosen(dialog):
     assert capture.sets == []
 
 
-def test_unreported_fps_shows_30_and_is_saved_only_on_ok(dialog, stored):
+def test_unreported_fps_shows_25_and_is_saved_only_on_ok(dialog, stored):
     capture = FakeDeviceCapture()
     capture.props[cv2.CAP_PROP_FPS] = -1.0
     dialog.init_ui(capture)
-    assert dialog.ui.spinBox_fps.value() == 30
+    assert dialog.ui.spinBox_fps.value() == 25
     assert not dialog.ui.label_fpsNote.isHidden()
     note = dialog.ui.label_fpsNote.text()
-    assert "30" in note and "1" in note
+    assert "25" in note and "1" in note
     assert fetch_data("scoresight.json", "fps") is None
     assert stored == []
     dialog.save_settings()
-    assert fetch_data("scoresight.json", "fps") == 30
+    assert fetch_data("scoresight.json", "fps") == 25
 
 
 def test_fps_of_one_is_corrected_when_the_dialog_opens(dialog):
@@ -124,10 +124,10 @@ def test_fps_of_one_is_corrected_when_the_dialog_opens(dialog):
     capture.props[cv2.CAP_PROP_FPS] = 1.0
     store_data("scoresight.json", "fps", 1)
     dialog.init_ui(capture)
-    assert dialog.ui.spinBox_fps.value() == 30
+    assert dialog.ui.spinBox_fps.value() == 25
     assert not dialog.ui.label_fpsNote.isHidden()
-    assert "30" in dialog.ui.label_fpsNote.text()
-    assert fetch_data("scoresight.json", "fps") == 30
+    assert "25" in dialog.ui.label_fpsNote.text()
+    assert fetch_data("scoresight.json", "fps") == 25
     # the control itself cannot go back to 1
     dialog.ui.spinBox_fps.setValue(1)
     assert dialog.ui.spinBox_fps.value() >= 5
@@ -153,14 +153,14 @@ def test_a_saved_one_keeps_the_rate_the_device_reports(dialog):
         (29.97, None, 30, "device"),
         (59.94, None, 60, "device"),
         (60.0, 30, 60, "device"),
-        (-1.0, None, 30, "suggest-default"),
-        (float("nan"), None, 30, "suggest-default"),
-        (None, None, 30, "suggest-default"),
+        (-1.0, None, 25, "suggest-default"),
+        (float("nan"), None, 25, "suggest-default"),
+        (None, None, 25, "suggest-default"),
         (-1.0, 25, 25, "keep-stored"),
-        (1.0, 1, 30, "correct-now"),
-        (0.0, None, 30, "correct-now"),
-        (1.0, None, 30, "correct-now"),
-        (-1.0, 1, 30, "correct-now"),
+        (1.0, 1, 25, "correct-now"),
+        (0.0, None, 25, "correct-now"),
+        (1.0, None, 25, "correct-now"),
+        (-1.0, 1, 25, "correct-now"),
         (60.0, 1, 60, "correct-to-device"),
         (1.0, 60, 60, "reapply"),
         (0, 24, 24, "reapply"),

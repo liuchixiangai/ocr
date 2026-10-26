@@ -17,7 +17,7 @@
    <item row="0" column="0">
     <widget class="QLabel" name="label_captureHint">
      <property name="text">
-      <string>The video format is chosen by the camera driver and can't be changed here: some capture cards report a code that isn't a real format name. Details the device doesn't report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 30 — never 1.</string>
+      <string>The video format is chosen by the camera driver and can't be changed here: some capture cards report a code that isn't a real format name. Details the device doesn't report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 25 — never 1.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -54,7 +54,7 @@
       <item row="3" column="1">
        <widget class="QSpinBox" name="spinBox_fps">
         <property name="toolTip">
-         <string>30 is the default. 1 is not allowed: a capture card that doesn't report a frame rate used to be saved as 1.</string>
+         <string>25 is the default. 1 is not allowed: a capture card that doesn't report a frame rate used to be saved as 1.</string>
         </property>
         <property name="minimum">
          <number>5</number>
@@ -63,7 +63,7 @@
          <number>240</number>
         </property>
         <property name="value">
-         <number>30</number>
+         <number>25</number>
         </property>
        </widget>
       </item>

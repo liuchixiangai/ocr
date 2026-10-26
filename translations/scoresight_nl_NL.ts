@@ -411,7 +411,7 @@ Resolutie: {width}×{height}</translation>
     </message>
     <message>
         <location filename="../src/video_settings.ui" line="20"/>
-        <source>The video format is chosen by the camera driver and can&apos;t be changed here: some capture cards report a code that isn&apos;t a real format name. Details the device doesn&apos;t report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 30 — never 1.</source>
+        <source>The video format is chosen by the camera driver and can&apos;t be changed here: some capture cards report a code that isn&apos;t a real format name. Details the device doesn&apos;t report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 25 — never 1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -421,7 +421,7 @@ Resolutie: {width}×{height}</translation>
     </message>
     <message>
         <location filename="../src/video_settings.ui" line="57"/>
-        <source>30 is the default. 1 is not allowed: a capture card that doesn&apos;t report a frame rate used to be saved as 1.</source>
+        <source>25 is the default. 1 is not allowed: a capture card that doesn&apos;t report a frame rate used to be saved as 1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

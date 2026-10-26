@@ -685,12 +685,12 @@ def store_video_settings(**settings):
         store_data("scoresight.json", name, value)
 
 
-def test_a_stored_frame_rate_of_one_opens_at_thirty(fake_video_capture):
+def test_a_stored_frame_rate_of_one_opens_at_twenty_five(fake_video_capture):
     store_video_settings(fps=1, width=1280, height=720)
     OpenCVVideoCaptureWithSettings(0, cv2.CAP_DSHOW, apply_video_settings=True)
     [device] = fake_video_capture.instances
-    assert (cv2.CAP_PROP_FPS, 30.0) in device.calls
-    assert storage.fetch_data("scoresight.json", "fps") == 30
+    assert (cv2.CAP_PROP_FPS, 25.0) in device.calls
+    assert storage.fetch_data("scoresight.json", "fps") == 25
 
 
 def test_an_unset_frame_rate_is_left_to_the_driver(fake_video_capture):

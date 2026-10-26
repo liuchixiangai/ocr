@@ -126,11 +126,11 @@ def choose_dialog_fps(reported, stored) -> tuple[int, str]:
     "correct-to-device": a saved rate below 5 (the old dialog saved 1) is
     replaced immediately with the usable rate the device just reported.
     "correct-now": that bad rate, and no usable device rate, is replaced
-    with 30 immediately.
+    with 25 immediately.
     "reapply": the device reports that bad rate but a usable one is saved;
     show the saved one and push it to the device again.
     "keep-stored": the device didn't report a rate; show the saved one.
-    "suggest-default": nothing usable; show 30 and save it only if the dialog
+    "suggest-default": nothing usable; show 25 and save it only if the dialog
     is accepted. Cancel leaves the driver's own rate.
     """
     stored_ok = usable_capture_fps(stored)

@@ -424,8 +424,8 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/video_settings.ui" line="20"/>
-        <source>The video format is chosen by the camera driver and can&apos;t be changed here: some capture cards report a code that isn&apos;t a real format name. Details the device doesn&apos;t report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 30 — never 1.</source>
-        <translation>视频格式由摄像头驱动决定，这里不能手选：有的采集卡报上来的并不是真正的格式名，而是一串乱码。设备没报告的参数已在下面隐藏。若画面黑屏、卡顿或分辨率不对，请把采集后端在 DShow 和 Microsoft Media Foundation 之间换一下，并关掉其它正在占用该摄像头的软件。帧率默认 30，不要设成 1。</translation>
+        <source>The video format is chosen by the camera driver and can&apos;t be changed here: some capture cards report a code that isn&apos;t a real format name. Details the device doesn&apos;t report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 25 — never 1.</source>
+        <translation>视频格式由摄像头驱动决定，这里不能手选：有的采集卡报上来的并不是真正的格式名，而是一串乱码。设备没报告的参数已在下面隐藏。若画面黑屏、卡顿或分辨率不对，请把采集后端在 DShow 和 Microsoft Media Foundation 之间换一下，并关掉其它正在占用该摄像头的软件。帧率默认 25，不要设成 1。</translation>
     </message>
     <message>
         <location filename="../src/video_settings.ui" line="40"/>
@@ -434,8 +434,8 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/video_settings.ui" line="57"/>
-        <source>30 is the default. 1 is not allowed: a capture card that doesn&apos;t report a frame rate used to be saved as 1.</source>
-        <translation>默认 30。不能填 1：采集卡不报告帧率时，以前会被存成 1。</translation>
+        <source>25 is the default. 1 is not allowed: a capture card that doesn&apos;t report a frame rate used to be saved as 1.</source>
+        <translation>默认 25。不能填 1：采集卡不报告帧率时，以前会被存成 1。</translation>
     </message>
     <message>
         <location filename="../src/video_settings.ui" line="86"/>

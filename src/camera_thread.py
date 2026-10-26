@@ -163,10 +163,10 @@ def fourcc_code(fourcc) -> int | None:
     return cv2.VideoWriter_fourcc(*fourcc)
 
 
-# Frame rate asked of a camera. 30 is the default when a device doesn't report
+# Frame rate asked of a camera. 25 is the default when a device doesn't report
 # one. Anything below MIN (including 1, the old spin box's floor, which is what
 # a failed read of 0 or -1 used to be saved as) is not a real mode.
-DEFAULT_CAPTURE_FPS = 30
+DEFAULT_CAPTURE_FPS = 25
 MIN_CAPTURE_FPS = 5
 MAX_CAPTURE_FPS = 240
 
@@ -199,7 +199,7 @@ def is_bad_low_fps(value) -> bool:
 def fps_for_capture(value) -> float | None:
     """The frame rate to pass to CAP_PROP_FPS, or None to leave the driver's.
 
-    A saved 1 is applied as 30. Nothing saved (None) stays the driver's rate.
+    A saved 1 is applied as 25. Nothing saved (None) stays the driver's rate.
     """
     if is_bad_low_fps(value):
         return float(DEFAULT_CAPTURE_FPS)

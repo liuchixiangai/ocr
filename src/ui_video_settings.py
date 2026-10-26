@@ -49,7 +49,7 @@ class Ui_Dialog(object):
         self.spinBox_fps.setObjectName(u"spinBox_fps")
         self.spinBox_fps.setMinimum(5)
         self.spinBox_fps.setMaximum(240)
-        self.spinBox_fps.setValue(30)
+        self.spinBox_fps.setValue(25)
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.spinBox_fps)
 
@@ -119,12 +119,12 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"Dialog", None))
-        self.label_captureHint.setText(QCoreApplication.translate("Dialog", u"The video format is chosen by the camera driver and can't be changed here: some capture cards report a code that isn't a real format name. Details the device doesn't report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 30 \u2014 never 1.", None))
+        self.label_captureHint.setText(QCoreApplication.translate("Dialog", u"The video format is chosen by the camera driver and can't be changed here: some capture cards report a code that isn't a real format name. Details the device doesn't report are hidden below. If the picture is black, stuttering or the wrong size, switch the capture backend between DShow and Microsoft Media Foundation, and close other programs that are using the camera. The frame rate defaults to 25 \u2014 never 1.", None))
         self.label.setText(QCoreApplication.translate("Dialog", u"Video Format", None))
         self.label_formatValue.setText(QCoreApplication.translate("Dialog", u"Driver default (not editable)", None))
         self.label_2.setText(QCoreApplication.translate("Dialog", u"FPS", None))
 #if QT_CONFIG(tooltip)
-        self.spinBox_fps.setToolTip(QCoreApplication.translate("Dialog", u"30 is the default. 1 is not allowed: a capture card that doesn't report a frame rate used to be saved as 1.", None))
+        self.spinBox_fps.setToolTip(QCoreApplication.translate("Dialog", u"25 is the default. 1 is not allowed: a capture card that doesn't report a frame rate used to be saved as 1.", None))
 #endif // QT_CONFIG(tooltip)
         self.label_fpsNote.setText("")
         self.label_3.setText(QCoreApplication.translate("Dialog", u"Resolution", None))
