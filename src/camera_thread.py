@@ -115,10 +115,11 @@ OBS_FORMATS = ("YUY2", "NV12", "MJPG")
 # How many canvases those format retries cover. The full list is already
 # probed once without a FOURCC.
 OBS_FORMAT_SIZE_LIMIT = 3
-# Media Foundation retries after DirectShow: the device's own media type
-# first (no size), then this many canvases. A failed MSMF read can block for
-# about 10 s, so this stays at one extra size.
-OBS_MSMF_SIZE_LIMIT = 1
+# Extra Media Foundation canvases after the device's own media type.
+# A failed MSMF read blocks for about 10 s inside OpenCV, so a second size
+# is not tried: when DirectShow never delivered a frame, one native open is
+# the fallback, not another ten seconds.
+OBS_MSMF_SIZE_LIMIT = 0
 # Limited-range video black is 16. The empty OBS buffer is a flat field at or
 # under that (every sample 0, or a flat Y=16). A dark LED board can keep its
 # brightest digit at 8 or below and still be readable: those digits spread the
@@ -145,8 +146,14 @@ OBS_PROBE_READS = 8
 OBS_BLANK_STREAK = 30
 # How long a new open waits for the previous OBS graph to release. Refresh
 # and a source change close the viewer first; this is the backstop when that
-# read is still inside OpenCV's 1 s grabber wait.
-OBS_REOPEN_WAIT_S = 8.0
+# read is still inside OpenCV. A Media Foundation read can block for about
+# 10 s, so this outlasts one of those.
+OBS_REOPEN_WAIT_S = 12.0
+# Stop opening further canvases this long after the search started. The first
+# size always runs: a canvas that already has pixels returns immediately.
+# The cap is only the failure path (every size black, or each read timing out
+# for about a second) so the Chinese hint is not behind tens of seconds.
+OBS_OPEN_BUDGET_S = 8.0
 # Ask DirectShow / MSMF for a one-frame queue. If the device still reports a
 # deeper queue, drop at most this many already-buffered frames per read.
 # Extra grab() calls wait when the queue is empty, so this stays small.
@@ -378,9 +385,10 @@ def obs_format_attempts(
 def obs_msmf_attempts(width, height) -> list[tuple[int | None, int | None, str | None]]:
     """Media Foundation opens. (None, None) is the device's own media type.
 
-    Width and height are applied with set() after open: MSMF ignores them in
-    the constructor. The native type is first because that is the canvas OBS
-    is actually outputting, which is what DirectShow's 640×480 request misses.
+    Width and height would be applied with set() after open: MSMF ignores them
+    in the constructor. Only the native type is opened. A failed read blocks
+    for about 10 s, and a size DirectShow already failed does not justify a
+    second wait. This runs only when DirectShow never delivered a frame.
     """
     native: list[tuple[int | None, int | None, str | None]] = [(None, None, None)]
     sized = [
@@ -659,6 +667,47 @@ def frame_is_blank(frame) -> bool:
     return variance <= BLANK_FRAME_VARIANCE
 
 
+def obs_probe_result(capture, reads: int = OBS_PROBE_READS, stop_check=None) -> str:
+    """What the next reads of an OBS graph did.
+
+    "picture": a frame that is not a flat near-black field.
+    "blank": the device delivered frames, and every one was that field.
+    "failed": a read returned no frame (the grabber timed out). The device
+    did not prove it can deliver a buffer.
+    "stopped": refresh or a source change asked the capture thread to stop.
+    Checked between reads. A read already inside OpenCV cannot be interrupted.
+
+    A delivered black frame and a timed-out read are not the same. The first
+    means the virtual camera is open and the picture is empty, so another
+    backend would only add its own timeout.
+    """
+    try:
+        reads = int(reads)
+    except (TypeError, ValueError):
+        reads = OBS_PROBE_READS
+    if reads < 1:
+        reads = 1
+    delivered = False
+    for _ in range(reads):
+        if stop_check is not None:
+            try:
+                if stop_check():
+                    return "stopped"
+            except Exception:
+                logger.exception("OBS open stop check failed")
+                return "stopped"
+        try:
+            ok, frame = capture.read()
+        except cv2.error:
+            return "blank" if delivered else "failed"
+        if not ok or frame is None:
+            return "blank" if delivered else "failed"
+        delivered = True
+        if not frame_is_blank(frame):
+            return "picture"
+    return "blank"
+
+
 def capture_delivers_picture(
     capture, reads: int = OBS_PROBE_READS, stop_check=None
 ) -> bool:
@@ -670,29 +719,7 @@ def capture_delivers_picture(
     start of a good graph are skipped. `stop_check` is polled between reads
     (a read already inside OpenCV's grabber wait cannot be interrupted).
     """
-    try:
-        reads = int(reads)
-    except (TypeError, ValueError):
-        reads = OBS_PROBE_READS
-    if reads < 1:
-        reads = 1
-    for _ in range(reads):
-        if stop_check is not None:
-            try:
-                if stop_check():
-                    return False
-            except Exception:
-                logger.exception("OBS open stop check failed")
-                return False
-        try:
-            ok, frame = capture.read()
-        except cv2.error:
-            return False
-        if not ok or frame is None:
-            return False
-        if not frame_is_blank(frame):
-            return True
-    return False
+    return obs_probe_result(capture, reads=reads, stop_check=stop_check) == "picture"
 
 
 def _release_capture(capture) -> None:
@@ -1039,14 +1066,39 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         except RuntimeError:
             logger.warning("OBS graph lock was already released")
 
+    def _obs_elapsed_ms(self) -> float:
+        started = getattr(self, "_obs_open_started", None)
+        if started is None:
+            return 0.0
+        return (time.monotonic() - started) * 1000.0
+
+    def _past_open_budget(self) -> bool:
+        started = getattr(self, "_obs_open_started", None)
+        if started is None:
+            return False
+        try:
+            budget = float(OBS_OPEN_BUDGET_S)
+        except (TypeError, ValueError):
+            budget = 8.0
+        if budget < 0:
+            budget = 0.0
+        return (time.monotonic() - started) >= budget
+
     def _open_obs_virtual_camera(self):
         """Open OBS at a canvas that has pixels, then give the device up if not.
 
+        Runs on the capture thread (TimerThread.run), not the UI thread.
+        Refresh sets the thread's stop flag; the probe checks it between
+        reads and releases the graph it opened, including when a read raises.
+
         DirectShow sizes first (the graph is built with the size, because
         asking afterwards rebuilds it and OBS reports success for a size it
-        is not outputting). Formats next, for names OpenCV does not force to
-        NV12. Media Foundation last, at the friendly name's own index, native
-        media type first. Every failed graph is released before the next one.
+        is not outputting). The first size that has pixels is kept immediately.
+        Formats next, for names OpenCV does not force to NV12. Media Foundation
+        last, and only when DirectShow never delivered a frame: a flat black
+        frame means the device is already open, and a failed MSMF read blocks
+        for about 10 s. The search also stops after OBS_OPEN_BUDGET_S so a
+        black device shows the Chinese hint instead of trying every canvas.
         The graph lock is held until release() so a refresh cannot open a
         second graph while this one still exists.
         """
@@ -1055,27 +1107,55 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
             return _UnopenedCapture()
         if not self._acquire_obs_graph():
             return _UnopenedCapture()
+        self._obs_open_started = time.monotonic()
         try:
-            kept = self._probe_obs_attempts(
+            kept, saw_blank = self._probe_obs_attempts(
                 obs_size_attempts(self.width, self.height),
                 cv2.CAP_DSHOW,
                 self.capture_id,
                 "DirectShow size",
             )
-            if kept is None and not self._stop_requested():
-                kept = self._probe_obs_attempts(
+            if (
+                kept is None
+                and not self._stop_requested()
+                and not self._past_open_budget()
+            ):
+                kept, saw_format = self._probe_obs_attempts(
                     obs_format_attempts(self.source_name, self.width, self.height),
                     cv2.CAP_DSHOW,
                     self.capture_id,
                     "DirectShow format",
                 )
-            if kept is None and not self._stop_requested():
-                kept = self._probe_obs_msmf()
+                saw_blank = saw_blank or saw_format
             if kept is not None:
                 return kept
             if self._stop_requested():
-                logger.info("OBS Virtual Camera: open cancelled")
+                logger.info(
+                    "OBS Virtual Camera: open cancelled after %.0f ms",
+                    self._obs_elapsed_ms(),
+                )
+            elif saw_blank:
+                logger.info(
+                    "OBS Virtual Camera: DirectShow delivered only a flat black "
+                    "frame after %.0f ms. Not opening Media Foundation.",
+                    self._obs_elapsed_ms(),
+                )
+            elif self._past_open_budget():
+                logger.info(
+                    "OBS Virtual Camera: no picture after %.0f ms. Not opening "
+                    "Media Foundation.",
+                    self._obs_elapsed_ms(),
+                )
             else:
+                kept = self._probe_obs_msmf()
+                if kept is not None:
+                    return kept
+                logger.warning(
+                    "OBS Virtual Camera: no picture after %.0f ms. Start Virtual "
+                    "Camera in OBS, then refresh the source.",
+                    self._obs_elapsed_ms(),
+                )
+            if not self._stop_requested() and (saw_blank or self._past_open_budget()):
                 logger.warning(
                     "OBS Virtual Camera: no picture. Start Virtual Camera in OBS, "
                     "then refresh the source."
@@ -1104,18 +1184,32 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
             self.source_name,
             self.capture_id,
         )
-        return self._probe_obs_attempts(
+        kept, _saw_blank = self._probe_obs_attempts(
             obs_msmf_attempts(self.width, self.height),
             cv2.CAP_MSMF,
             index,
             "Media Foundation",
         )
+        return kept
 
     def _probe_obs_attempts(self, attempts, backend, device_id, label):
-        for width, height, fourcc in attempts:
+        """(kept capture or None, whether a delivered frame was flat black).
+
+        The first attempt always runs. Later ones stop when refresh asked, or
+        when the open has already used OBS_OPEN_BUDGET_S.
+        """
+        saw_blank = False
+        for index, (width, height, fourcc) in enumerate(attempts):
             if self._stop_requested():
                 logger.info("OBS Virtual Camera: open cancelled before %s", label)
-                return None
+                return None, saw_blank
+            if index > 0 and self._past_open_budget():
+                logger.info(
+                    "OBS Virtual Camera: stopping %s after %.0f ms",
+                    label,
+                    self._obs_elapsed_ms(),
+                )
+                return None, saw_blank
             size = (
                 "native"
                 if width is None or height is None
@@ -1179,22 +1273,28 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
                     continue
                 if self._stop_requested():
                     logger.info("OBS Virtual Camera: open cancelled during %s", label)
-                    return None
+                    return None, saw_blank
                 try:
-                    picture = capture_delivers_picture(
-                        capture, stop_check=self._stop_requested
-                    )
+                    result = obs_probe_result(capture, stop_check=self._stop_requested)
                 except Exception:
                     logger.exception(
                         "OBS Virtual Camera: %s %s probe failed", label, size
                     )
-                    picture = False
-                if self._stop_requested():
+                    result = "failed"
+                if result == "stopped" or self._stop_requested():
                     logger.info("OBS Virtual Camera: open cancelled during %s", label)
-                    return None
-                if not picture:
+                    return None, saw_blank
+                if result == "blank":
+                    saw_blank = True
                     logger.info(
-                        "OBS Virtual Camera: %s %s had no picture; releasing it",
+                        "OBS Virtual Camera: %s %s was flat black; releasing it",
+                        label,
+                        size,
+                    )
+                    continue
+                if result != "picture":
+                    logger.info(
+                        "OBS Virtual Camera: %s %s had no frame; releasing it",
                         label,
                         size,
                     )
@@ -1209,12 +1309,17 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
                         "OBS Virtual Camera: could not shorten the frame queue"
                     )
                     self._stale_grabs = 0
-                logger.info("OBS Virtual Camera: picture via %s at %s", label, size)
-                return kept
+                logger.info(
+                    "OBS Virtual Camera: picture via %s at %s in %.0f ms",
+                    label,
+                    size,
+                    self._obs_elapsed_ms(),
+                )
+                return kept, saw_blank
             finally:
                 if capture is not None:
                     _release_capture(capture)
-        return None
+        return None, saw_blank
 
     def _apply_settings(self, capture, opening: bool):
         if is_obs_virtual_camera(self.source_name) and platform.system() == "Windows":

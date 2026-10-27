@@ -861,10 +861,8 @@ def test_obs_canvas_order_tries_the_stored_size_once():
     legacy = camera_thread.obs_format_attempts("OBS-Camera", 800, 600)
     assert legacy[0] == (800, 600, "YUY2")
     assert legacy[1] == (800, 600, "NV12")
-    msmf = camera_thread.obs_msmf_attempts(800, 600)
-    assert msmf[0] == (None, None, None)
-    assert msmf[1] == (800, 600, None)
-    assert len(msmf) == 1 + camera_thread.OBS_MSMF_SIZE_LIMIT
+    # Native media type only. A second size is another ~10 s blocked read.
+    assert camera_thread.obs_msmf_attempts(800, 600) == [(None, None, None)]
 
 
 def _dark_led_board(height, width):
@@ -1144,7 +1142,9 @@ def test_black_directshow_opens_msmf_by_name_not_by_directshow_index(
                 and not self.params
             ):
                 return True, color_frame()
-            return True, np.zeros((8, 8, 3), np.uint8)
+            # No frame at all. A flat black frame is not this case: that means
+            # DirectShow already opened, and Media Foundation is not tried.
+            return False, None
 
     monkeypatch.setattr(cv2, "VideoCapture", ByBackend)
     capture = OpenCVVideoCaptureWithSettings(
@@ -1186,7 +1186,7 @@ def test_msmf_index_zero_is_used_and_a_missing_name_never_borrows_directshow(
                 and not self.params
             ):
                 return True, color_frame()
-            return True, np.zeros((8, 8, 3), np.uint8)
+            return False, None
 
     monkeypatch.setattr(cv2, "VideoCapture", ByBackend)
     monkeypatch.setattr(
@@ -1324,6 +1324,115 @@ def test_obs_open_stops_during_a_read(fake_video_capture, monkeypatch):
     assert len(FirstRead.instances) == 1
     assert FirstRead.instances[0].released
     capture.release()
+    # The graph lock was released with that capture, so the next open is not
+    # waiting on a graph nobody owns.
+    monkeypatch.setattr(cv2, "VideoCapture", FakeVideoCapture)
+    FakeVideoCapture.instances.clear()
+    nxt = OpenCVVideoCaptureWithSettings(
+        3,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert nxt.isOpened()
+    assert len(FakeVideoCapture.instances) == 1
+    nxt.release()
+
+
+def test_the_first_obs_size_with_a_picture_opens_nothing_else(
+    fake_video_capture, monkeypatch
+):
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+
+    class Color(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            return True, color_frame()
+
+    monkeypatch.setattr(cv2, "VideoCapture", Color)
+    capture = OpenCVVideoCaptureWithSettings(
+        1,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert capture.isOpened()
+    assert len(Color.instances) == 1
+    assert not Color.instances[0].released
+    capture.release()
+
+
+def test_flat_black_directshow_does_not_open_media_foundation(
+    fake_video_capture, monkeypatch
+):
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+
+    def forbid_msmf():
+        raise AssertionError("flat black DirectShow must not open Media Foundation")
+
+    monkeypatch.setattr(camera_thread, "msmf_friendly_names", forbid_msmf)
+
+    class AlwaysBlack(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            return True, np.zeros((8, 8, 3), np.uint8)
+
+    monkeypatch.setattr(cv2, "VideoCapture", AlwaysBlack)
+    capture = OpenCVVideoCaptureWithSettings(
+        2,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert not capture.isOpened()
+    assert AlwaysBlack.instances
+    assert all(device.backend == cv2.CAP_DSHOW for device in AlwaysBlack.instances)
+    assert all(device.released for device in AlwaysBlack.instances)
+    capture.release()
+
+
+def test_obs_open_stops_after_the_budget_even_when_later_sizes_remain(
+    fake_video_capture, monkeypatch
+):
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(camera_thread, "OBS_OPEN_BUDGET_S", 0.0)
+
+    def forbid_msmf():
+        raise AssertionError("the open budget must not continue into Media Foundation")
+
+    monkeypatch.setattr(camera_thread, "msmf_friendly_names", forbid_msmf)
+
+    class AlwaysBlack(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            return True, np.zeros((8, 8, 3), np.uint8)
+
+    monkeypatch.setattr(cv2, "VideoCapture", AlwaysBlack)
+    capture = OpenCVVideoCaptureWithSettings(
+        6,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert not capture.isOpened()
+    assert len(AlwaysBlack.instances) == 1
+    assert AlwaysBlack.instances[0].released
+    capture.release()
+
+
+def test_a_failed_read_is_not_a_delivered_black_frame():
+    class Failing:
+        def read(self):
+            return False, None
+
+    assert camera_thread.obs_probe_result(Failing()) == "failed"
+
+    class Black:
+        def read(self):
+            return True, np.zeros((4, 4, 3), np.uint8)
+
+    assert camera_thread.obs_probe_result(Black(), reads=2) == "blank"
+    assert camera_thread.capture_delivers_picture(Black(), reads=2) is False
 
 
 def test_vmix_frames_never_raise_the_obs_blank_warning():
