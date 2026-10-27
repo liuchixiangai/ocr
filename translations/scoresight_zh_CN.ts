@@ -145,26 +145,26 @@ ScoreSight keeps running. You can download the new version from the release page
 <context>
     <name>BoxSettings</name>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="73"/>
+        <location filename="../src/box_settings_ui_handler.py" line="75"/>
         <source>Off</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>关</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="77"/>
+        <location filename="../src/box_settings_ui_handler.py" line="79"/>
         <source>{value} %</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>{value}%</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="119"/>
+        <location filename="../src/box_settings_ui_handler.py" line="121"/>
         <source>Image cleanup is for the Tesseract models; PP-OCR reads the picture as it is.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>“图像清理”仅适用于 Tesseract 模型；PP-OCR 直接读取原始画面。</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="433"/>
-        <location filename="../src/mainwindow.py" line="3175"/>
+        <location filename="../src/box_settings_ui_handler.py" line="456"/>
+        <location filename="../src/mainwindow.py" line="3241"/>
         <source>This field is built from other fields (see Template): it has no box on the picture and no reading settings.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>此字段由其他字段组成（见“模板”）：它在画面上没有检测框，也没有识别设置。</translation>
@@ -175,37 +175,37 @@ ScoreSight keeps running. You can download the new version from the release page
         <translation type="obsolete">此字段尚未放到画面上。请点击列表下方的“放到画面上”，然后将其检测框拖到数值上。</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="439"/>
+        <location filename="../src/box_settings_ui_handler.py" line="462"/>
         <source>This field isn&apos;t on the picture yet. Drag over its numbers on the picture, or double-click the field in the list.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>此字段尚未放到画面上。请在画面上拖选数字，或在列表中双击该字段。</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="449"/>
+        <location filename="../src/box_settings_ui_handler.py" line="472"/>
         <source>Template: only custom fields can be built from other fields.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>模板：只有自定义字段才能由其他字段组成。</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="454"/>
+        <location filename="../src/box_settings_ui_handler.py" line="477"/>
         <source>To build this field from other fields instead, remove it from the picture first.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>若要改为由其他字段组成此字段，请先将它从画面移除。</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="460"/>
+        <location filename="../src/box_settings_ui_handler.py" line="483"/>
         <source>Each field in double braces is replaced by its value. Insert field adds one, spelled exactly as the template needs it.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>双花括号中的每个字段都会被替换为其值。“插入字段”会按模板所需的准确写法添加一个字段。</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="593"/>
+        <location filename="../src/box_settings_ui_handler.py" line="616"/>
         <source>Not a valid expression, so it is ignored: every reading passes.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>表达式无效，因此被忽略：所有读数都会通过。</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/box_settings_ui_handler.py" line="634"/>
+        <location filename="../src/box_settings_ui_handler.py" line="657"/>
         <source>%n changed</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>
@@ -213,19 +213,19 @@ ScoreSight keeps running. You can download the new version from the release page
         </translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="638"/>
+        <location filename="../src/box_settings_ui_handler.py" line="661"/>
         <source>all default</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>全部为默认值</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="671"/>
+        <location filename="../src/box_settings_ui_handler.py" line="694"/>
         <source>{name} (not on the picture)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>{name}（不在画面上）</translation>
     </message>
     <message>
-        <location filename="../src/box_settings_ui_handler.py" line="678"/>
+        <location filename="../src/box_settings_ui_handler.py" line="701"/>
         <source>No other fields</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>没有其他字段</translation>
@@ -685,13 +685,13 @@ Resolution: {width}×{height}</source>
 <context>
     <name>ImageViewer</name>
     <message>
-        <location filename="../src/source_view.py" line="440"/>
+        <location filename="../src/source_view.py" line="441"/>
         <source>Invalid four-corner selection: click the four corners of the scoreboard</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>四角选区无效：请点击计分板的 4 个角</translation>
     </message>
     <message>
-        <location filename="../src/source_view.py" line="718"/>
+        <location filename="../src/source_view.py" line="722"/>
         <source>Drag over the numbers to place {name}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>拖选数字以放置 {name}</translation>
@@ -1077,7 +1077,7 @@ Resolution: {width}×{height}</source>
     <message>
         <location filename="../src/mainwindow.ui" line="94"/>
         <location filename="../src/mainwindow.ui" line="5158"/>
-        <location filename="../src/mainwindow.py" line="2655"/>
+        <location filename="../src/mainwindow.py" line="2718"/>
         <source>Pause outputs</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>暂停输出</translation>
@@ -1324,7 +1324,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="4003"/>
-        <location filename="../src/mainwindow.py" line="3855"/>
+        <location filename="../src/mainwindow.py" line="3921"/>
         <source>Connect to the WebSocket server of OBS Studio</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>连接到 OBS Studio 的 WebSocket 服务器</translation>
@@ -1758,7 +1758,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="854"/>
-        <location filename="../src/mainwindow.py" line="4970"/>
+        <location filename="../src/mainwindow.py" line="5148"/>
         <source>Correct the perspective: click the 4 corners of the scoreboard</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>校正透视：点击记分板的 4 个角</translation>
@@ -1853,7 +1853,7 @@ Resolution: {width}×{height}</source>
     <message>
         <location filename="../src/mainwindow.ui" line="1302"/>
         <location filename="../src/mainwindow.ui" line="1358"/>
-        <location filename="../src/mainwindow.py" line="4916"/>
+        <location filename="../src/mainwindow.py" line="5094"/>
         <source>Cancel</source>
         <translation>取消</translation>
     </message>
@@ -1931,8 +1931,8 @@ Resolution: {width}×{height}</source>
     <message>
         <location filename="../src/mainwindow.ui" line="218"/>
         <location filename="../src/mainwindow.ui" line="1741"/>
-        <location filename="../src/mainwindow.py" line="2837"/>
-        <location filename="../src/mainwindow.py" line="4565"/>
+        <location filename="../src/mainwindow.py" line="2900"/>
+        <location filename="../src/mainwindow.py" line="4707"/>
         <source>Box</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>框选</translation>
@@ -2447,7 +2447,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="1648"/>
-        <location filename="../src/mainwindow.py" line="3181"/>
+        <location filename="../src/mainwindow.py" line="3247"/>
         <source>Select a field, then drag over its numbers on the picture.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>选择一个字段，然后在画面上拖动框选其数字。</translation>
@@ -2493,14 +2493,14 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="2439"/>
-        <location filename="../src/box_settings_ui_handler.py" line="494"/>
+        <location filename="../src/box_settings_ui_handler.py" line="517"/>
         <source>Show or hide the settings that clean up the box&apos;s image before a Tesseract model reads it. Binary view shows the result.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>显示或隐藏在 Tesseract 模型识别前清理检测框图像的设置。“二值视图”可显示结果。</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="3026"/>
-        <location filename="../src/mainwindow.py" line="2357"/>
+        <location filename="../src/mainwindow.py" line="2420"/>
         <source>The OCR model that reads every box, not only the selected one. PP-OCR (automatic) reads with PP-OCR (accurate) while this computer keeps up, and with PP-OCR (fast), which needs about a fifth of the CPU, when it doesn&apos;t. The Tesseract models use the boxes&apos; Image cleanup settings; Load external Tesseract model... reads a .traineddata file.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>识别所有检测框（而不仅是所选检测框）所用的 OCR 模型。PP-OCR（自动）在本机处理得过来时使用 PP-OCR（精确），处理不过来时使用 PP-OCR（快速），后者只需约五分之一的 CPU。Tesseract 模型使用检测框的“图像清理”设置；“加载外部 Tesseract 模型...”可读取 .traineddata 文件。</translation>
@@ -2959,14 +2959,14 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="5042"/>
-        <location filename="../src/mainwindow.py" line="3217"/>
+        <location filename="../src/mainwindow.py" line="3283"/>
         <source>Hold value...</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>固定数值...</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="5045"/>
-        <location filename="../src/mainwindow.py" line="3306"/>
+        <location filename="../src/mainwindow.py" line="3372"/>
         <source>Send a value you type to every output instead of this field&apos;s readings, until you release it</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>在您解除锁定之前，将您输入的值发送到所有输出，而不是此字段的读数</translation>
@@ -3220,7 +3220,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="526"/>
-        <location filename="../src/mainwindow.py" line="4696"/>
+        <location filename="../src/mainwindow.py" line="4871"/>
         <source>The video source: a camera, capture card or NDI source, a video file, a stream URL or a screen capture</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>视频来源：摄像头、采集卡或 NDI 来源、视频文件、流 URL 或屏幕捕获</translation>
@@ -3282,7 +3282,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="4018"/>
-        <location filename="../src/mainwindow.py" line="3853"/>
+        <location filename="../src/mainwindow.py" line="3919"/>
         <source>Connect OBS</source>
         <translation>连接 OBS</translation>
     </message>
@@ -3364,8 +3364,8 @@ Resolution: {width}×{height}</source>
         <location filename="../src/mainwindow.ui" line="71"/>
         <location filename="../src/mainwindow.ui" line="3681"/>
         <location filename="../src/mainwindow.ui" line="4780"/>
-        <location filename="../src/mainwindow.py" line="1240"/>
-        <location filename="../src/mainwindow.py" line="3580"/>
+        <location filename="../src/mainwindow.py" line="1250"/>
+        <location filename="../src/mainwindow.py" line="3646"/>
         <source>Fields</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>字段</translation>
@@ -3411,7 +3411,7 @@ Resolution: {width}×{height}</source>
     <message>
         <location filename="../src/mainwindow.ui" line="297"/>
         <location filename="../src/mainwindow.ui" line="5003"/>
-        <location filename="../src/mainwindow.py" line="3416"/>
+        <location filename="../src/mainwindow.py" line="3482"/>
         <source>Remove from picture</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>从画面移除</translation>
@@ -3430,7 +3430,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="323"/>
-        <location filename="../src/mainwindow.py" line="3433"/>
+        <location filename="../src/mainwindow.py" line="3499"/>
         <source>Delete field</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>删除字段</translation>
@@ -3452,7 +3452,7 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">屏幕截图</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1566"/>
+        <location filename="../src/mainwindow.py" line="1617"/>
         <source>Video Settings</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>视频设置</translation>
@@ -3629,7 +3629,7 @@ Resolution: {width}×{height}</source>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="1408"/>
-        <location filename="../src/mainwindow.py" line="2653"/>
+        <location filename="../src/mainwindow.py" line="2716"/>
         <source>Resume outputs</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>恢复输出</translation>
@@ -3639,7 +3639,7 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">### 打开摄像头或加载文件</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1477"/>
+        <location filename="../src/mainwindow.py" line="1528"/>
         <source>&lt;p&gt;The HTTP server is not running: port {port} is already in use or not available.&lt;/p&gt;&lt;p&gt;Close the other program, or start ScoreSight with &lt;b&gt;--port&lt;/b&gt; to use a different port. The log has the details.&lt;/p&gt;</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>&lt;p&gt;HTTP 服务器未运行：端口 {port} 已被占用或不可用。&lt;/p&gt;&lt;p&gt;请关闭其他程序，或使用 &lt;b&gt;--port&lt;/b&gt; 参数启动 光为 OCR 以使用其他端口。详情请查看日志。&lt;/p&gt;</translation>
@@ -3650,31 +3650,31 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">版本 {version}</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1397"/>
+        <location filename="../src/mainwindow.py" line="1448"/>
         <source>System</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>跟随系统</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="352"/>
+        <location filename="../src/mainwindow.py" line="356"/>
         <source>⌥ Option</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>⌥ Option</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="353"/>
+        <location filename="../src/mainwindow.py" line="357"/>
         <source>Alt</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>Alt</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1238"/>
+        <location filename="../src/mainwindow.py" line="1248"/>
         <source>Readings</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>读数</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1318"/>
+        <location filename="../src/mainwindow.py" line="1328"/>
         <source>Fields not on the picture: {count} hidden. &lt;a href=&quot;#show&quot;&gt;Show them&lt;/a&gt;</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>不在画面上的字段：已隐藏 {count} 个。&lt;a href=&quot;#show&quot;&gt;显示&lt;/a&gt;</translation>
@@ -3685,136 +3685,136 @@ Resolution: {width}×{height}</source>
         <translation type="obsolete">加载外部模型...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1355"/>
+        <location filename="../src/mainwindow.py" line="1366"/>
         <source>Drag to resize the fields list. Double-click to hide or show it.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>拖动可调整字段列表的大小。双击可隐藏或显示。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1361"/>
+        <location filename="../src/mainwindow.py" line="1372"/>
         <source>Drag to resize the Box and Outputs settings. Double-click to hide or show them.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>拖动可调整“检测框”和“输出”设置的大小。双击可隐藏或显示。</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="3819"/>
-        <location filename="../src/mainwindow.py" line="1398"/>
+        <location filename="../src/mainwindow.py" line="1449"/>
         <source>Light</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>浅色</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="3814"/>
-        <location filename="../src/mainwindow.py" line="1399"/>
+        <location filename="../src/mainwindow.py" line="1450"/>
         <source>Dark</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>深色</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1429"/>
+        <location filename="../src/mainwindow.py" line="1480"/>
         <source>Zoom with Ctrl+scroll or {zoom_in} and {zoom_out}; drag with the middle mouse button to move the picture.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>使用 Ctrl+滚轮或 {zoom_in} 和 {zoom_out} 缩放；按住鼠标中键拖动可移动画面。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1492"/>
+        <location filename="../src/mainwindow.py" line="1543"/>
         <source>&lt;p&gt;From other computers on your network, use {url} instead of http://localhost:{port}.&lt;/p&gt;</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>&lt;p&gt;在网络中的其他计算机上，请使用 {url} 代替 http://localhost:{port}。&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1702"/>
+        <location filename="../src/mainwindow.py" line="1753"/>
         <source>Outside the cropped picture: {names}. They read nothing: widen the crop, or remove them from the picture and place them again.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>位于裁剪后的画面之外：{names}。它们读取不到任何内容：请扩大裁剪范围，或将其从画面移除后重新放置。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="1892"/>
-        <location filename="../src/mainwindow.py" line="1895"/>
+        <location filename="../src/mainwindow.py" line="1943"/>
+        <location filename="../src/mainwindow.py" line="1946"/>
         <source>{value} /s</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>{value} 次/秒</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2262"/>
+        <location filename="../src/mainwindow.py" line="2325"/>
         <source>Load external Tesseract model...</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>加载外部 Tesseract 模型...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2270"/>
+        <location filename="../src/mainwindow.py" line="2333"/>
         <source>Read the boxes with a Tesseract .traineddata file</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>使用 Tesseract .traineddata 文件识别检测框</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2280"/>
+        <location filename="../src/mainwindow.py" line="2343"/>
         <source>A Tesseract model: the boxes&apos; Image cleanup settings prepare their images for it</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>Tesseract 模型：检测框的“图像清理”设置会为其准备图像</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2290"/>
+        <location filename="../src/mainwindow.py" line="2353"/>
         <source>PaddleOCR PP-OCRv6: accurate while it keeps up with Detections / s on this computer, fast when it doesn&apos;t. The status bar says which one reads and why.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PaddleOCR PP-OCRv6：在本机能跟上“检测次数 / 秒”时使用精确模型，跟不上时使用快速模型。状态栏会显示当前使用哪个模型及原因。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2298"/>
+        <location filename="../src/mainwindow.py" line="2361"/>
         <source>PP-OCR (accurate)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR（精确）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2300"/>
+        <location filename="../src/mainwindow.py" line="2363"/>
         <source>PaddleOCR PP-OCRv6 small: reads the most values right, always. It needs about five times the CPU of PP-OCR (fast): on a laptop, 10 boxes read 5 times a second can need more than a core.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PaddleOCR PP-OCRv6 small：始终能正确识别最多的数值。它所需的 CPU 约为 PP-OCR（快速）的五倍：在笔记本电脑上，10 个检测框每秒识别 5 次可能需要不止一个核心。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2308"/>
+        <location filename="../src/mainwindow.py" line="2371"/>
         <source>PP-OCR (fast)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR（快速）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2310"/>
+        <location filename="../src/mainwindow.py" line="2373"/>
         <source>PaddleOCR PP-OCRv6 tiny: about a fifth of PP-OCR (accurate)&apos;s CPU, for many boxes, a high Detections / s or a slow computer; it misreads more of the hard displays (clocks, bulbs, LCDs).</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PaddleOCR PP-OCRv6 tiny：CPU 占用约为 PP-OCR（精确）的五分之一，适用于检测框多、“检测次数 / 秒”较高或计算机较慢的情况；在难以识别的显示屏（计时器、灯泡屏、LCD）上误读更多。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2318"/>
+        <location filename="../src/mainwindow.py" line="2381"/>
         <source>The PP-OCR models aren&apos;t installed. Download them with: {command}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>未安装 PP-OCR 模型。请使用以下命令下载：{command}</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2323"/>
+        <location filename="../src/mainwindow.py" line="2386"/>
         <source>PP-OCR needs onnxruntime, which isn&apos;t installed (pip install -r requirements.txt).</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 需要 onnxruntime，但尚未安装（pip install -r requirements.txt）。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2338"/>
+        <location filename="../src/mainwindow.py" line="2401"/>
         <source>PP-OCR (automatic: accurate)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR（自动：精确）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2342"/>
+        <location filename="../src/mainwindow.py" line="2405"/>
         <source>PP-OCR (automatic: fast)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR（自动：快速）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2343"/>
+        <location filename="../src/mainwindow.py" line="2406"/>
         <source>PP-OCR (automatic)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR（自动）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2452"/>
+        <location filename="../src/mainwindow.py" line="2515"/>
         <source>The OCR can&apos;t keep up</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>OCR 处理不过来</translation>
@@ -3825,19 +3825,19 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">检测框每秒识别 {rate} 次，而不是 {target} 次。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2467"/>
+        <location filename="../src/mainwindow.py" line="2530"/>
         <source>Use PP-OCR (fast)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>使用 PP-OCR（快速）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2471"/>
+        <location filename="../src/mainwindow.py" line="2534"/>
         <source>Keep PP-OCR (accurate)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>保留 PP-OCR（精确）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2495"/>
+        <location filename="../src/mainwindow.py" line="2558"/>
         <source>Logs</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>日志</translation>
@@ -3848,405 +3848,409 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">关于光为 OCR</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2455"/>
+        <location filename="../src/mainwindow.py" line="2518"/>
         <source>The boxes are read {rate} times per second instead of {target}. The preview keeps moving; this number is only how often the boxes are read.</source>
         <translation>检测框每秒识别 {rate} 次，而不是 {target} 次。预览画面仍在刷新；这个数字只是识别次数。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2592"/>
+        <location filename="../src/mainwindow.py" line="2655"/>
         <source>About {app}</source>
         <translation>关于 {app}</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2682"/>
+        <location filename="../src/mainwindow.py" line="2745"/>
         <source>&lt;b&gt;Outputs paused&lt;/b&gt; since {time}. Your graphics show the last values sent; the readings here keep updating.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>自 {time} 起&lt;b&gt;输出已暂停&lt;/b&gt;。图文画面显示的是最后发送的值；此处的读数会继续更新。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2878"/>
+        <location filename="../src/mainwindow.py" line="2941"/>
         <source>Built from other fields: no box to pick.</source>
         <translation>合成字段，无需选框。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2886"/>
         <source>Click here first, then drag on the picture to place this field&apos;s box.</source>
-        <translation>请先点这里，再在画面上拖动，框选这个字段。</translation>
+        <translation type="vanished">请先点这里，再在画面上拖动，框选这个字段。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2907"/>
+        <location filename="../src/mainwindow.py" line="2949"/>
+        <source>Choose what this box is, then drag on the picture. Team names need Chinese text.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/mainwindow.py" line="2970"/>
         <source>This field is built from others and has no box on the picture.</source>
         <translation>这个字段由其他字段合成，画面上没有框。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2919"/>
+        <location filename="../src/mainwindow.py" line="2985"/>
         <source>Selected “{name}”: drag on the picture to place its box.</source>
         <translation>已选「{name}」：在画面上拖动以放置框。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="2934"/>
+        <location filename="../src/mainwindow.py" line="3000"/>
         <source>Selected “{name}”: drag its box to move it, or Alt+drag to draw it again.</source>
         <translation>已选「{name}」：拖动框可移动，或按住 Alt 再拖以重新画框。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3123"/>
+        <location filename="../src/mainwindow.py" line="3189"/>
         <source>Not on the picture yet. Drag over its numbers on the picture, or double-click here to put its box in the middle of the picture.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>尚未放到画面上。请在画面上拖动框选其数字，或双击此处将其检测框放到画面中央。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3129"/>
+        <location filename="../src/mainwindow.py" line="3195"/>
         <source>Built from other fields: it has no box.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>由其他字段组成：没有框选。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3133"/>
+        <location filename="../src/mainwindow.py" line="3199"/>
         <source>On the picture: drag its box to move it, or {alt}+drag on the picture to draw it again. Right-click for its actions.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已在画面上：拖动其检测框可移动，在画面上 {alt}+拖动可重新绘制。右键单击可查看其操作。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3140"/>
+        <location filename="../src/mainwindow.py" line="3206"/>
         <source>F2 renames it.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>按 F2 可重命名。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3142"/>
+        <location filename="../src/mainwindow.py" line="3208"/>
         <source>Double-click to rename it.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>双击可重命名。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3165"/>
+        <location filename="../src/mainwindow.py" line="3231"/>
         <source>Drag on the picture to place it, or double-click the field</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>在画面上拖动即可放置，或双击该字段</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3170"/>
+        <location filename="../src/mainwindow.py" line="3236"/>
         <source>Drag the box to move it · {delete} removes it</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>拖动框选可移动 · {delete} 可移除</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3215"/>
+        <location filename="../src/mainwindow.py" line="3281"/>
         <source>Change held value...</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>更改锁定的值...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3300"/>
+        <location filename="../src/mainwindow.py" line="3366"/>
         <source>Only custom fields can be renamed or deleted</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>只有自定义字段可以重命名或删除</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3312"/>
+        <location filename="../src/mainwindow.py" line="3378"/>
         <source>Place the field on the picture first</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>请先将字段放到画面上</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3417"/>
+        <location filename="../src/mainwindow.py" line="3483"/>
         <source>Remove “{name}” from the picture? Its settings go back to the defaults, so the settings you changed are lost.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>要将“{name}”从画面移除吗？其设置会恢复为默认值，您更改过的设置将丢失。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3422"/>
+        <location filename="../src/mainwindow.py" line="3488"/>
         <source>Remove</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>移除</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3434"/>
+        <location filename="../src/mainwindow.py" line="3500"/>
         <source>Delete the field “{name}”? Its box and its settings are deleted too.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>要删除字段“{name}”吗？其检测框和设置也会一并删除。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3438"/>
+        <location filename="../src/mainwindow.py" line="3504"/>
         <source>Delete</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>删除</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3564"/>
+        <location filename="../src/mainwindow.py" line="3630"/>
         <source>Window</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>窗口</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3592"/>
+        <location filename="../src/mainwindow.py" line="3658"/>
         <source>Remove the selected field&apos;s box from the picture</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>将所选字段的检测框从画面移除</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3599"/>
+        <location filename="../src/mainwindow.py" line="3665"/>
         <source>Delete the selected custom field (not on the picture)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>删除所选的自定义字段（不在画面上）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3606"/>
+        <location filename="../src/mainwindow.py" line="3672"/>
         <source>Put a field&apos;s box on the picture, or rename a custom field</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>将字段的检测框放到画面上，或重命名自定义字段</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3611"/>
+        <location filename="../src/mainwindow.py" line="3677"/>
         <source>Double-click the field</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>双击字段</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3618"/>
+        <location filename="../src/mainwindow.py" line="3684"/>
         <source>Picture</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>画面</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3658"/>
+        <location filename="../src/mainwindow.py" line="3724"/>
         <source>Connect to OBS</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>连接到 OBS</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3720"/>
-        <location filename="../src/mainwindow.py" line="3846"/>
+        <location filename="../src/mainwindow.py" line="3786"/>
+        <location filename="../src/mainwindow.py" line="3912"/>
         <source>Connecting...</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在连接...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3767"/>
+        <location filename="../src/mainwindow.py" line="3833"/>
         <source>Cannot connect to OBS</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>无法连接到 OBS</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3837"/>
+        <location filename="../src/mainwindow.py" line="3903"/>
         <source>Change connection...</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>更改连接...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3840"/>
+        <location filename="../src/mainwindow.py" line="3906"/>
         <source>Connected to OBS at {target}. Click to connect to another OBS.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已连接到 {target} 上的 OBS。点击可连接到其他 OBS。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="3848"/>
+        <location filename="../src/mainwindow.py" line="3914"/>
         <source>Connecting to OBS at {target}...</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在连接到 {target} 上的 OBS...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4120"/>
+        <location filename="../src/mainwindow.py" line="4219"/>
         <source>URL Source</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>URL 源</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4140"/>
+        <location filename="../src/mainwindow.py" line="4239"/>
         <source>Screen Capture Selection</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>选择屏幕采集区域</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4147"/>
+        <location filename="../src/mainwindow.py" line="4246"/>
         <source>Capture the entire screen</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>采集整个屏幕</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4705"/>
+        <location filename="../src/mainwindow.py" line="4880"/>
         <source>For vMix, choose the vMix Video camera instead of capturing the vMix window. Play and pause buttons in the preview mean this is the program window, not a clean picture.</source>
         <translation>用 vMix 时，源里选「vMix Video」，不要用屏幕采集去抓 vMix 窗口。预览里若能看到播放、暂停按钮，抓到的是软件界面，不是干净的节目画面。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4718"/>
+        <location filename="../src/mainwindow.py" line="4896"/>
         <source>Video settings: the resolution, frame rate and format of the camera or capture card</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>视频设置：摄像头或采集卡的分辨率、帧率和格式</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4724"/>
+        <location filename="../src/mainwindow.py" line="4902"/>
         <source>Video settings: only for cameras and capture cards</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>视频设置：仅用于摄像头和采集卡</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4911"/>
+        <location filename="../src/mainwindow.py" line="5089"/>
         <source>Redo corners…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>重新选取四角…</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4913"/>
+        <location filename="../src/mainwindow.py" line="5091"/>
         <source>Remove correction…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>移除校正…</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4929"/>
+        <location filename="../src/mainwindow.py" line="5107"/>
         <source>Remove the 4-corner correction?</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>要移除四角校正吗？</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4930"/>
+        <location filename="../src/mainwindow.py" line="5108"/>
         <source>The picture will no longer be corrected. The boxes were placed on the corrected picture, so they may have to be moved.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>画面将不再校正。检测框是在校正后的画面上放置的，因此可能需要移动它们。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4958"/>
+        <location filename="../src/mainwindow.py" line="5136"/>
         <source>Picking the corners: click the 4 corners of the scoreboard. Click here or press Esc to cancel.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在选取四角：点击记分板的 4 个角。点击此处或按 Esc 取消。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="4964"/>
+        <location filename="../src/mainwindow.py" line="5142"/>
         <source>The perspective is corrected. Click to redo the corners or to remove the correction.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>透视已校正。点击可重新选取四角或移除校正。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5078"/>
+        <location filename="../src/mainwindow.py" line="5256"/>
         <source>Move the boxes?</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>移动检测框？</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5079"/>
+        <location filename="../src/mainwindow.py" line="5257"/>
         <source>Auto layout found {found}. Some of them have boxes on the picture already ({placed}): move those boxes to what it found?</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>自动布局找到了 {found}。其中一些在画面上已有检测框（{placed}）：要将这些检测框移动到找到的位置吗？</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5087"/>
+        <location filename="../src/mainwindow.py" line="5265"/>
         <source>Move them</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>移动</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5091"/>
+        <location filename="../src/mainwindow.py" line="5269"/>
         <source>Keep them</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>保留</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5110"/>
+        <location filename="../src/mainwindow.py" line="5288"/>
         <source>Reset the crop?</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>要重置裁剪吗？</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5111"/>
+        <location filename="../src/mainwindow.py" line="5289"/>
         <source>The whole picture will be read again, and the crop&apos;s values set to 0. The boxes move with it, so they stay over the same digits.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>将重新读取整个画面，裁剪的值将设为 0。检测框会随之移动，因此仍位于相同的数字上。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5117"/>
+        <location filename="../src/mainwindow.py" line="5295"/>
         <source>Reset crop</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>重置裁剪</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5164"/>
+        <location filename="../src/mainwindow.py" line="5346"/>
         <source>No camera found</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>未找到摄像头</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5214"/>
+        <location filename="../src/mainwindow.py" line="5396"/>
         <source>Step {number}: done</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>第 {number} 步：已完成</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5216"/>
+        <location filename="../src/mainwindow.py" line="5398"/>
         <source>Step {number}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>第 {number} 步</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5457"/>
+        <location filename="../src/mainwindow.py" line="5696"/>
         <source>Rename field</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>重命名字段</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5463"/>
+        <location filename="../src/mainwindow.py" line="5702"/>
         <source>New name:</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>新名称：</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5475"/>
+        <location filename="../src/mainwindow.py" line="5714"/>
         <source>There is already a field named “{name}”. Choose another name.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已存在名为“{name}”的字段。请换一个名称。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5604"/>
+        <location filename="../src/mainwindow.py" line="5847"/>
         <source>Created the scene “{name}” in OBS.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已在 OBS 中创建场景「{name}」。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5607"/>
+        <location filename="../src/mainwindow.py" line="5850"/>
         <source>Made the scene “{name}” again: its sources were replaced.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已重新创建场景“{name}”：其中的源已被替换。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5611"/>
+        <location filename="../src/mainwindow.py" line="5854"/>
         <source>OBS already has a scene “{name}”: it was kept as it is. Tick Recreate to make it again.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>OBS 中已有场景“{name}”：已保持原样。勾选“重新创建”可重新创建该场景。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5616"/>
+        <location filename="../src/mainwindow.py" line="5859"/>
         <source>Couldn&apos;t create the scene “{name}”. Tools &gt; View log has the details.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>无法创建场景“{name}”。详情请查看“工具 &gt; 查看日志”。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5659"/>
+        <location filename="../src/mainwindow.py" line="5902"/>
         <source>Close ScoreSight?</source>
         <translation>要关闭光为 OCR 吗？</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5663"/>
+        <location filename="../src/mainwindow.py" line="5906"/>
         <source>Reading stops, and vMix, OBS, the overlays and the other outputs are no longer updated.</source>
         <translation>识别将停止，vMix、OBS、叠加层和其它输出不再更新。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5670"/>
+        <location filename="../src/mainwindow.py" line="5913"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.py" line="5676"/>
+        <location filename="../src/mainwindow.py" line="5919"/>
         <source>Don&apos;t ask again</source>
         <translation>不再询问</translation>
     </message>
     <message>
-        <location filename="../src/vmix_ui_handler.py" line="129"/>
+        <location filename="../src/vmix_ui_handler.py" line="218"/>
         <source>Stop vMix</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>停止 vMix</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.ui" line="4277"/>
-        <location filename="../src/vmix_ui_handler.py" line="131"/>
+        <location filename="../src/vmix_ui_handler.py" line="220"/>
         <source>Start vMix</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>开始 vMix</translation>
@@ -5814,148 +5818,148 @@ Resolution: {width}×{height}</source>
 <context>
     <name>StatusBar</name>
     <message>
-        <location filename="../src/status_bar.py" line="217"/>
+        <location filename="../src/status_bar.py" line="222"/>
         <source>Screen capture</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>屏幕采集</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="242"/>
+        <location filename="../src/status_bar.py" line="251"/>
         <source>No source</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>无视频源</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="245"/>
+        <location filename="../src/status_bar.py" line="254"/>
         <source>Opening {source}…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在打开 {source}…</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="249"/>
+        <location filename="../src/status_bar.py" line="258"/>
         <source>{source}: can&apos;t be read</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>{source}：无法读取</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="253"/>
+        <location filename="../src/status_bar.py" line="262"/>
         <source>{source}: no new frames</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>{source}：没有新帧</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="257"/>
+        <location filename="../src/status_bar.py" line="266"/>
         <source>{source}: reconnecting…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>{source}：正在重新连接…</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="267"/>
+        <location filename="../src/status_bar.py" line="276"/>
         <source>slow: {fps} of {nominal} fps</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>采集偏慢：{fps}/{nominal} 帧/秒</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="275"/>
+        <location filename="../src/status_bar.py" line="284"/>
         <source>{fps} fps</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>采集 {fps} 帧/秒</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="288"/>
+        <location filename="../src/status_bar.py" line="297"/>
         <source>rotated {angle}°</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>旋转 {angle}°</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="293"/>
+        <location filename="../src/status_bar.py" line="302"/>
         <source>flipped horizontally</source>
         <translation>已水平翻转</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="295"/>
+        <location filename="../src/status_bar.py" line="304"/>
         <source>flipped vertically</source>
         <translation>已垂直翻转</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="297"/>
+        <location filename="../src/status_bar.py" line="306"/>
         <source>cropped</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已裁剪</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="299"/>
+        <location filename="../src/status_bar.py" line="308"/>
         <source>4-corner corrected</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已四角校正</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="301"/>
+        <location filename="../src/status_bar.py" line="310"/>
         <source>stabilized</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>稳定</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="304"/>
+        <location filename="../src/status_bar.py" line="313"/>
         <source>Adjust picture: {list}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>调整画面：{list}</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="312"/>
+        <location filename="../src/status_bar.py" line="321"/>
         <source>Opening the source…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在打开来源…</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="314"/>
+        <location filename="../src/status_bar.py" line="323"/>
         <source>Frames are arriving.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在接收帧。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="316"/>
+        <location filename="../src/status_bar.py" line="325"/>
         <source>Frames arrive at less than half the source&apos;s frame rate: the computer or the network can&apos;t keep up.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>帧的到达速率不到来源帧率的一半：计算机或网络处理不过来。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="322"/>
+        <location filename="../src/status_bar.py" line="331"/>
         <source>No frames: reconnecting to the source…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>没有帧：正在重新连接来源…</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="326"/>
+        <location filename="../src/status_bar.py" line="335"/>
         <source>No new frames for a few seconds.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>几秒内没有新帧。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="330"/>
+        <location filename="../src/status_bar.py" line="339"/>
         <source>The source can&apos;t be read.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>无法读取来源。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="331"/>
+        <location filename="../src/status_bar.py" line="340"/>
         <source>No source is open.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>未打开来源。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="349"/>
+        <location filename="../src/status_bar.py" line="358"/>
         <source>Loading PP-OCR…</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在加载 PP-OCR…</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="351"/>
+        <location filename="../src/status_bar.py" line="360"/>
         <source>OCR {rate}/s of {target}</source>
         <translation>识别框 {rate} 次/秒（目标 {target}）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="355"/>
+        <location filename="../src/status_bar.py" line="364"/>
         <source>OCR {rate}/s</source>
         <translation>识别框 {rate} 次/秒</translation>
     </message>
@@ -5970,108 +5974,108 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">识别 {rate}/秒</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="359"/>
+        <location filename="../src/status_bar.py" line="368"/>
         <source>with Tesseract: PP-OCR didn&apos;t load</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>使用 Tesseract：PP-OCR 未能加载</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="400"/>
+        <location filename="../src/status_bar.py" line="409"/>
         <source>PP-OCR automatic: fast (accurate didn&apos;t load)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 自动：快速（精确模型未能加载）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="403"/>
+        <location filename="../src/status_bar.py" line="412"/>
         <source>PP-OCR automatic: fast (accurate needs {ms} ms per reading here, more than {share}% of the {interval} ms between readings)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 自动：快速（精确模型在本机每次识别需 {ms} 毫秒，超过两次识别间隔 {interval} 毫秒的 {share}%）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="413"/>
+        <location filename="../src/status_bar.py" line="422"/>
         <source>PP-OCR automatic: accurate (it needs {ms} ms per reading here, of the {interval} ms between readings)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 自动：精确（在本机每次识别需 {ms} 毫秒，两次识别间隔为 {interval} 毫秒）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="418"/>
+        <location filename="../src/status_bar.py" line="427"/>
         <source>PP-OCR automatic: accurate (measuring how long it needs here)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 自动：精确（正在测量在本机所需的时间）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="437"/>
+        <location filename="../src/status_bar.py" line="446"/>
         <source>PP-OCR (accurate) needs more CPU than this computer has for these boxes at this rate. Choose PP-OCR (fast) as the OCR model (it needs about a fifth of the CPU), or lower Detections / s.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR（精确）以此频率识别这些检测框所需的 CPU 超出了本机的能力。请将 OCR 模型改为 PP-OCR（快速）（所需 CPU 约为五分之一），或调低“检测次数 / 秒”。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="448"/>
+        <location filename="../src/status_bar.py" line="457"/>
         <source>How many times per second the boxes are read (OCR), and the Detections / s setting. This is not the camera or file frame rate: that is the source&apos;s frames per second. The preview aims for about 15 pictures per second when the computer can keep up.</source>
         <translation>这是检测框每秒被识别几次，以及「检测次数 / 秒」。它不是摄像头或视频文件的帧率；帧率在来源那一项。电脑跟得上时，预览大约每秒 15 张。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="456"/>
+        <location filename="../src/status_bar.py" line="465"/>
         <source>The PP-OCR model is loading; the boxes are read as soon as it is ready.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 模型正在加载；加载完成后即开始识别检测框。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="472"/>
+        <location filename="../src/status_bar.py" line="481"/>
         <source>PP-OCR couldn&apos;t load ({error}), so the boxes are read with Tesseract (General Scoreboard). The log has the details.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>PP-OCR 未能加载（{error}），因此改用 Tesseract（General Scoreboard）识别检测框。详情请查看日志。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="483"/>
+        <location filename="../src/status_bar.py" line="492"/>
         <source>PAUSED {elapsed}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已暂停 {elapsed}</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="491"/>
+        <location filename="../src/status_bar.py" line="500"/>
         <source>HTTP server not running (port {port} busy)</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>HTTP 服务器未运行（端口 {port} 被占用）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="615"/>
+        <location filename="../src/status_bar.py" line="624"/>
         <source>Outputs:</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>输出：</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="621"/>
+        <location filename="../src/status_bar.py" line="630"/>
         <source>Collecting training data</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>正在收集训练数据</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="624"/>
+        <location filename="../src/status_bar.py" line="633"/>
         <source>Copy</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>复制</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="626"/>
+        <location filename="../src/status_bar.py" line="635"/>
         <source>Copy the HTTP server&apos;s address to the clipboard</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>将 HTTP 服务器地址复制到剪贴板</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="631"/>
+        <location filename="../src/status_bar.py" line="640"/>
         <source>Copy the HTTP server&apos;s address</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>复制 HTTP 服务器地址</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="634"/>
+        <location filename="../src/status_bar.py" line="643"/>
         <source>Feedback</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>反馈</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="637"/>
+        <location filename="../src/status_bar.py" line="646"/>
         <source>Ask a question, share an idea or show your setup: opens ScoreSight&apos;s Discussions on GitHub in your web browser</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>提问、分享想法或展示你的配置：在网页浏览器中打开 GitHub 上的 光为 OCR Discussions</translation>
@@ -6087,24 +6091,24 @@ Resolution: {width}×{height}</source>
         <translation type="vanished">每秒识别检测框的次数，以及“检测次数 / 秒”设置。预览画面有意每秒只刷新约一次。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="466"/>
+        <location filename="../src/status_bar.py" line="475"/>
         <source>The computer can&apos;t keep up: lower Detections / s, use fewer boxes or a lower source resolution.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>计算机处理不过来：请调低“检测次数 / 秒”、减少检测框数量，或降低来源分辨率。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="667"/>
+        <location filename="../src/status_bar.py" line="676"/>
         <source>The video source, its resolution and capture frame rate (how fast pictures arrive, not how often the boxes are read)</source>
         <translation>视频来源、分辨率和采集帧率（画面进来的速度，不是识别框的次数）</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="700"/>
+        <location filename="../src/status_bar.py" line="713"/>
         <source>The outputs are paused: they keep their last values</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>输出已暂停：保持最后的值</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="710"/>
+        <location filename="../src/status_bar.py" line="723"/>
         <source>The HTTP server (scoreboard page, JSON, XML, CSV). Open it in a browser or in other software on this computer or network:
 {urls}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
@@ -6112,13 +6116,13 @@ Resolution: {width}×{height}</source>
 {urls}</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="722"/>
+        <location filename="../src/status_bar.py" line="735"/>
         <source>Another program uses the port. Close it, or start ScoreSight with --port to use a different port.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>另一个程序正在使用该端口。请关闭它，或使用 --port 参数启动 光为 OCR 以使用其他端口。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="756"/>
+        <location filename="../src/status_bar.py" line="769"/>
         <source>The boxes&apos; pictures and readings are saved for training an OCR model, to {folder}.
 Click to change the folder or its size limit; Tools &gt; Collect OCR training data turns it off.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
@@ -6126,13 +6130,13 @@ Click to change the folder or its size limit; Tools &gt; Collect OCR training da
 点击可更改文件夹或其大小上限；“工具 &gt; 收集 OCR 训练数据”可关闭此功能。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="788"/>
+        <location filename="../src/status_bar.py" line="801"/>
         <source>Click to show its settings.</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>点击可显示其设置。</translation>
     </message>
     <message>
-        <location filename="../src/status_bar.py" line="808"/>
+        <location filename="../src/status_bar.py" line="821"/>
         <source>Copied {url}</source>
         <translatorcomment>Machine-drafted translation; please review.</translatorcomment>
         <translation>已复制 {url}</translation>

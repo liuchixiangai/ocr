@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from camera_info import CameraInfo
+from defaults import is_chinese_text_name
 from camera_view import (
     OSD_MARGIN_PX,
     OSD_STYLE,
@@ -714,11 +715,14 @@ class ImageViewer(CameraView):
             and not self.cropSelectionMode
         )
         if show:
-            hint.setText(
-                QCoreApplication.translate(
-                    "ImageViewer", "Drag over the numbers to place {name}"
-                ).format(name=self.placementField)
-            )
+            if is_chinese_text_name(self.placementField):
+                hint.setText(f"拖选汉字以放置 {self.placementField}")
+            else:
+                hint.setText(
+                    QCoreApplication.translate(
+                        "ImageViewer", "Drag over the numbers to place {name}"
+                    ).format(name=self.placementField)
+                )
             self.placePlacementHint()
         hint.setVisible(show)
 

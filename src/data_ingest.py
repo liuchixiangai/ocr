@@ -75,6 +75,8 @@ CANONICAL_TO_BOX_NAMES: dict[str, tuple[str, ...]] = {
     "home_fouls": ("主队犯规", "Home Fouls", "#Home Fouls"),
     "away_fouls": ("客队犯规", "Away Fouls", "#Away Fouls"),
     "shot_clock": ("24秒", "Shot Clock", "shotclock", "Shot clock"),
+    "home_name": ("主队队名", "主队名称", "Home Name"),
+    "away_name": ("客队队名", "客队名称", "Away Name"),
 }
 
 JSON_FRAME_DOC = """

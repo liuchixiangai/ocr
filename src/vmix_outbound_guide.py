@@ -185,7 +185,7 @@ class VmixOutboundGuide:
                 "<li>勾选下方「给 vMix 的 JSON（推荐）」——文件自动写到桌面「光为OCR输出」</li>"
                 "<li>打开 <b>vMix → Data Sources → + → JSON</b></li>"
                 "<li>粘贴路径（点下面「一键复制 JSON 路径」）→ Update 填 <b>100</b> 毫秒（不要填 1000，否则软件再快也会一秒一跳）</li>"
-                "<li>标题里用 Data Source 的英文列名绑定：<b>home_score / away_score / game_clock / period / home_fouls / away_fouls / shot_clock</b>——<b>不要</b>再加五个 Text 源</li>"
+                "<li>标题里用 Data Source 的英文列名绑定：<b>home_score / away_score / game_clock / period / home_fouls / away_fouls / shot_clock / home_name / away_name</b>——队名是 home_name、away_name（中文原样）。<b>不要</b>再加五个 Text 源</li>"
                 "</ol>"
                 "<p style='margin:4px 0 0 0;color:#bfdbfe;'>"
                 "vMix 刷新建议改成 100ms，否则软件再快也会一秒一跳。比赛时间和 24 秒最后几秒会带一位小数（如 game_clock 为 0:04.9、shot_clock 为 4.9），原样写出，不砍成整数。说明：vMix 的 JSON 列名必须是英文，软件已自动把「主队得分」等写成 home_score 等；CSV 仍可用中文表头。"
