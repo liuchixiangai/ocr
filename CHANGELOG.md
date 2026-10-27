@@ -26,6 +26,7 @@ not enabled.
 
 ### Fixed
 
+- **中文队名可以识别。** 新加的字段以前按数字处理，识别时又只允许英文和数字，框住记分牌上的队名会变成空白或乱数字。点「框选」会先问要比什么：主队得分、客队得分、比赛时间、24秒、节次、犯规、主队队名、客队队名（中文文字）、自定义文本、自定义数字。队名和自定义文本用 PP-OCR 的完整字库读简体中文；比分、犯规、时间仍只认数字。写出的 JSON 列名是 home_name、away_name。
 - **vMix 标题字段可以手选了。** 「进阶：扫描标题字段（API）」改成这一页最显眼的按钮（仍标明是进阶，日常继续用「给 vMix 的 JSON」）。扫描之后，映射表每一行右边都是下拉，列出该标题的文字字段；自动填上的可以改，没猜到的可以自己选，也可以手打。之前要点格子才弹出下拉，弹出后又马上关掉，所以经常选不中。
 - **比赛时间和 24 秒最后几秒的小数。** 牌面从整数切到一位小数（`0:04.9`、`4.9`，点被认成逗号或冒号也算）时，读数不再被格式滤掉，也不会砍成整数。`results.json` 里 `game_clock` / `shot_clock` 按小数连续写出。比分、犯规仍是整数。时钟和 24 秒继续不加 LED 防抖。便携通道 `2026.10.26.6`。
 - **A failed camera search is no longer a silent empty list.** On Windows, a DirectShow error (the enumerator missing, or COM failing) used to show the same empty source list as a computer with no camera. The list now says the search failed (设备枚举失败，请检查驱动或重装便携包) and the traceback goes to the log. A search that succeeds and finds nothing still says 没有找到摄像头/采集卡, with three checks: Device Manager, close OBS/vMix and press F5, and send a screenshot if OBS lists the card and this app does not. The first-run wizard and the source step say how to pick Magewell, 天创恒达, Blackmagic (including Thunderbolt UltraStudio) and a 禾鸟-style four-input switcher: one device in the list, switch the input on the hardware, OCR only needs that one picture. Help → 复制设备列表 copies the DirectShow names after a successful refresh.

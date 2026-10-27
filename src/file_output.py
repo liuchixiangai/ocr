@@ -77,6 +77,12 @@ _JSON_KEY_BY_NAME = {
     "24秒": "shot_clock",
     "主队暂停": "home_timeouts",
     "客队暂停": "away_timeouts",
+    "主队队名": "home_name",
+    "客队队名": "away_name",
+    "主队名称": "home_name",
+    "客队名称": "away_name",
+    "主队名": "home_name",
+    "客队名": "away_name",
 }
 # sports.role_of "clock" → game_clock in JSON (clearer for title binding)
 _JSON_ROLE_KEY = {

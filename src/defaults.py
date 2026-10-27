@@ -1,3 +1,6 @@
+import re
+
+
 class FieldType:
     # Enum for the type of the field
     NUMBER = 0
@@ -6,9 +9,13 @@ class FieldType:
 
 
 # The characters Tesseract may output for a box, by its field type (TEXT boxes
-# use GENERAL_CHAR_WHITELIST). Here rather than in tesseract.py so tools such as
-# the OCR evaluation harness (ocr_eval/) can apply them without importing
-# Tesseract.
+# use GENERAL_CHAR_WHITELIST on Tesseract). Here rather than in tesseract.py so
+# tools such as the OCR evaluation harness (ocr_eval/) can apply them without
+# importing Tesseract.
+# PP-OCR text / 队名 boxes are not limited to this ASCII list: the recognizer's
+# own character file includes simplified Chinese, and cn_reading.whitelist_for_box
+# returns None so those characters can be emitted. Digit and clock boxes stay
+# on the narrow lists below.
 CHAR_WHITELISTS = {
     FieldType.NUMBER: "0123456789",
     FieldType.TIME: "0123456789:.",
@@ -160,6 +167,63 @@ default_custom_box_info = {
     "ordinal_indicator": False,
     "is_custom": True,
 }
+# 队名 / 自定义文本: simplified Chinese (and Latin) via PP-OCR's full charset.
+# Wider than a score box; no LED digit debounce.
+default_text_box_info = {
+    "type": FieldType.TEXT,
+    "x": 0,
+    "y": 0,
+    "width": 240,
+    "height": 72,
+    "obs_source_name": "",
+    "format_regex": format_prefixes[10],
+    "ordinal_indicator": False,
+    "is_custom": True,
+}
+
+# Exact names, plus anything that is clearly a name rather than a score.
+_EXACT_TEXT_NAMES = frozenset(
+    {
+        "主队队名",
+        "客队队名",
+        "主队名称",
+        "客队名称",
+        "主队名",
+        "客队名",
+        "队名",
+    }
+)
+
+
+def is_chinese_text_name(name) -> bool:
+    """True for 队名 / 自定义文本 style boxes (not scores, clocks, fouls)."""
+    raw = (name or "").strip()
+    if not raw:
+        return False
+    if raw in _EXACT_TEXT_NAMES:
+        return True
+    if raw.startswith("文本"):
+        return True
+    if "队名" in raw:
+        return True
+    return raw.endswith("名称")
+
+
+def format_rejects_cjk(regex) -> bool:
+    """True when the format expression cannot match a simplified-Chinese name."""
+    if not isinstance(regex, str) or not regex:
+        return True
+    try:
+        return re.fullmatch(regex, "广东") is None
+    except re.error:
+        return False
+
+
+def _is_text_type(field_type) -> bool:
+    try:
+        return int(field_type) == int(FieldType.TEXT)
+    except (TypeError, ValueError):
+        return False
 
 
 def is_clock_like_field(name, field_type=None) -> bool:
@@ -212,14 +276,23 @@ def is_clock_like_field(name, field_type=None) -> bool:
     return False
 
 
+def _text_like_field(name=None, field_type=None) -> bool:
+    """队名 / 文本 boxes must not use the score LED debounce."""
+    return _is_text_type(field_type) or is_chinese_text_name(name)
+
+
 def default_led_stack_frames(name=None, field_type=None) -> int:
-    """New boxes: clocks 0 (off), scores/fouls 4."""
-    return 0 if is_clock_like_field(name, field_type) else 4
+    """New boxes: clocks and text/队名 0 (off), scores/fouls 4."""
+    if _text_like_field(name, field_type) or is_clock_like_field(name, field_type):
+        return 0
+    return 4
 
 
 def default_led_stable_ms(name=None, field_type=None) -> int:
-    """New boxes: clocks 0 (publish immediately), scores/fouls 200ms."""
-    return 0 if is_clock_like_field(name, field_type) else 200
+    """New boxes: clocks and text/队名 0 (publish immediately), scores/fouls 200ms."""
+    if _text_like_field(name, field_type) or is_clock_like_field(name, field_type):
+        return 0
+    return 200
 
 
 def force_clock_zero_latency(settings, name, field_type=None) -> bool:
@@ -243,6 +316,8 @@ def default_info_for_box_name(name):
     for box in default_boxes:
         if box["name"] == name:
             return box
+    if is_chinese_text_name(name):
+        return {**default_text_box_info, "name": name}
     return default_custom_box_info
 
 
@@ -278,7 +353,7 @@ def normalize_settings_dict(settings, box_info):
             "ordinal_indicator": False,
             "is_custom": True,
         }
-    return {
+    result = {
         "is_custom": (
             settings["is_custom"] if "is_custom" in settings else box_info["is_custom"]
         ),
@@ -373,3 +448,13 @@ def normalize_settings_dict(settings, box_info):
             )
         ),
     }
+    # A box named 队名 / 文本 was often saved as a digit field. That whitelist
+    # and the ^\\d*$ format drop every Chinese character. Repair it on load.
+    if is_chinese_text_name((box_info or {}).get("name")):
+        result["type"] = FieldType.TEXT
+        result["is_custom"] = True
+        if format_rejects_cjk(result.get("format_regex")):
+            result["format_regex"] = format_prefixes[10]
+        result["led_stack_frames"] = 0
+        result["led_stable_ms"] = 0
+    return result

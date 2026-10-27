@@ -148,11 +148,13 @@ from status_bar import (
     source_state_description,
 )
 import theme
+import box_pick
 from defaults import (
     default_boxes,
     default_info_for_box_name,
     normalize_settings_dict,
     force_clock_zero_latency,
+    is_chinese_text_name,
 )
 
 from storage import (
@@ -527,7 +529,7 @@ class MainWindow(QMainWindow):
         self.ui.horizontalSlider_detectionCadence.valueChanged.connect(
             self.detectionCadenceChanged
         )
-        self.ui.toolButton_addBox.clicked.connect(self.addBox)
+        self.ui.toolButton_addBox.clicked.connect(self.startNewFieldPick)
         self.ui.toolButton_removeBox.clicked.connect(self.deleteField)
 
         self.video_settings_dialog = None
@@ -887,7 +889,7 @@ class MainWindow(QMainWindow):
             self.addAction(action)
         ui.actionPauseOutputs.triggered.connect(ui.pushButton_stopUpdates.toggle)
         ui.pushButton_stopUpdates.toggled.connect(ui.actionPauseOutputs.setChecked)
-        ui.actionNewField.triggered.connect(self.addBox)
+        ui.actionNewField.triggered.connect(self.startNewFieldPick)
         # through the buttons: they do nothing while disabled (no source yet, a
         # reload running)
         ui.actionBinaryView.triggered.connect(self.triggerBinaryView)
@@ -2894,7 +2896,7 @@ class MainWindow(QMainWindow):
 
     def _selectBoxButtonLabel(self) -> str:
         if str(self.currentLocale() or "").lower().startswith("zh"):
-            return "选框"
+            return "框选"
         return QCoreApplication.translate("MainWindow", "Box")
 
     def _installSelectBoxButton(self, row: int, name: str):
@@ -2916,7 +2918,7 @@ class MainWindow(QMainWindow):
             return
         name = btn.property("fieldName")
         if name:
-            self.selectFieldForBoxPick(str(name))
+            self.openBoxPickDialog(str(name), new_field=False)
 
     def _refreshSelectBoxButton(self, btn: QPushButton, name: str | None = None):
         if btn is None:
@@ -2942,11 +2944,11 @@ class MainWindow(QMainWindow):
             )
         else:
             tip = (
-                "\u5148\u70b9\u8fd9\u91cc\uff0c\u518d\u5230\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df"
+                "先选要比的内容（比分、时间或队名），再在画面上拖框。队名选「中文文字」。"
                 if zh
                 else QCoreApplication.translate(
                     "MainWindow",
-                    "Click here first, then drag on the picture to place this field's box.",
+                    "Choose what this box is, then drag on the picture. Team names need Chinese text.",
                 )
             )
         btn.setToolTip(tip)
@@ -2971,17 +2973,20 @@ class MainWindow(QMainWindow):
                 )
             )
         elif role == NOT_PLACED:
-            msg = (
-                (
-                    "\u5df2\u9009\u300c%s\u300d\uff1a\u8bf7\u5728\u4e2d\u95f4\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df\u3002"
-                    % name
+            if zh and is_chinese_text_name(name):
+                msg = f"已选「{name}」（中文文字）：请在画面上拖框，罩住队名。"
+            else:
+                msg = (
+                    (
+                        "\u5df2\u9009\u300c%s\u300d\uff1a\u8bf7\u5728\u4e2d\u95f4\u753b\u9762\u4e0a\u62d6\u9009\u8bc6\u522b\u533a\u57df\u3002"
+                        % name
+                    )
+                    if zh
+                    else QCoreApplication.translate(
+                        "MainWindow",
+                        "Selected \u201c{name}\u201d: drag on the picture to place its box.",
+                    ).format(name=name)
                 )
-                if zh
-                else QCoreApplication.translate(
-                    "MainWindow",
-                    "Selected \u201c{name}\u201d: drag on the picture to place its box.",
-                ).format(name=name)
-            )
             viewer = getattr(self, "image_viewer", None)
             if viewer is not None:
                 viewer.setPlacementField(name)
@@ -4680,10 +4685,23 @@ class MainWindow(QMainWindow):
                 if h1 is not None:
                     h1.setText("值")
                 if h2 is not None:
-                    h2.setText("选框")
+                    h2.setText("框选")
                 self.ui.label_firstRunBoxesHint.setText(
-                    "先点工具栏「四角」拉正画面；字段旁点「选框」，再到画面上拖框"
+                    "先点工具栏「四角」拉正画面；点「框选」，选好比分、时间或队名，再在画面上拖框"
                 )
+                self.ui.comboBox_fieldType.setItemText(0, "数字")
+                self.ui.comboBox_fieldType.setItemText(1, "时间")
+                self.ui.comboBox_fieldType.setItemText(2, "文本 / 队名（中文）")
+                self.ui.comboBox_fieldType.setToolTip(
+                    "队名和汉字选「文本 / 队名（中文）」。比分选「数字」，比赛时间选「时间」。选错会空白或变成乱数字。"
+                )
+                if hasattr(self.ui, "label_13"):
+                    self.ui.label_13.setText("识别类型")
+                self.ui.toolButton_addBox.setToolTip(
+                    "框选新内容：先选比分、时间或队名（队名选中文文字），再在画面上拖框"
+                )
+                self.ui.actionNewField.setText("框选…")
+                self.ui.actionNewField.setToolTip(self.ui.toolButton_addBox.toolTip())
             else:
                 if h2 is not None:
                     h2.setText(QCoreApplication.translate("MainWindow", "Box"))
@@ -5554,6 +5572,63 @@ class MainWindow(QMainWindow):
         )
         if getattr(self, "vmixOutboundGuide", None) is not None:
             self.vmixOutboundGuide.refresh(self.fileOutput.status())
+
+    def startNewFieldPick(self):
+        """+ / 新建字段: ask what to box, then arm drawing. addBox() stays for tests."""
+        self.openBoxPickDialog(None, new_field=True)
+
+    def openBoxPickDialog(self, preferred_name: str | None, *, new_field: bool):
+        """框选: choose 比分 / 时间 / 队名 before the drag."""
+        key = box_pick.initial_key(preferred_name, new_field=new_field)
+        dialog = box_pick.BoxPickDialog(self, key, chinese=self._chinese_ui())
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.pick is None:
+            return
+        self.applyBoxPick(dialog.pick, preferred_name)
+
+    def applyBoxPick(self, pick: box_pick.BoxPick, preferred_name: str | None = None):
+        """Create or reclassify the field, then arm a drag on the picture."""
+        name = self._name_for_pick(pick, preferred_name)
+        self._ensure_field_row(name)
+        box = self.detectionTargetsStorage.find_item_by_name(name)
+        if box is not None:
+            box.settings = box_pick.settings_for_pick(name, pick, box.settings)
+            self.detectionTargetsStorage.edit_item(name, box)
+        self.selectFieldForBoxPick(name)
+
+    def _name_for_pick(self, pick: box_pick.BoxPick, preferred_name: str | None) -> str:
+        if pick.name:
+            return pick.name
+        # 自定义文本 must be a 文本/队名 name so the box is not created as digits.
+        if pick.field_type == box_pick.FieldType.TEXT:
+            if preferred_name and is_chinese_text_name(preferred_name):
+                return preferred_name
+            return self._next_field_name(pick.custom_prefix or "文本")
+        if (
+            preferred_name
+            and self.isCustomField(preferred_name)
+            and not is_chinese_text_name(preferred_name)
+        ):
+            return preferred_name
+        return self._next_field_name(pick.custom_prefix or "数字")
+
+    def _field_names(self) -> set[str]:
+        names = set(fetch_custom_box_names() or [])
+        table = self.ui.tableWidget_boxes
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if item is not None and item.text():
+                names.add(item.text())
+        return names
+
+    def _next_field_name(self, prefix: str) -> str:
+        return box_pick.next_custom_name(self._field_names(), prefix)
+
+    def _ensure_field_row(self, name: str):
+        if self.boxNameItem(name) is not None:
+            return
+        if self.isCustomField(name):
+            store_custom_box_name(name)
+        self.setFieldPlacement(self.appendBoxRow(name), NOT_PLACED)
 
     def addBox(self):
         # add a new box to the tableWidget_boxes

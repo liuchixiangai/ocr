@@ -409,6 +409,9 @@ class TextDetector:
         self._fallback_reported = False
         self._fallback_failed = False
         self._ppocr_error_logged_at: float | None = None
+        # 队名 while the global model is still Tesseract (no Chinese traineddata)
+        self._chinese_ppocr_logged = False
+        self._chinese_ppocr_missing_logged = False
         if model is None:
             model = ocr_models.stored_model()
         if (
@@ -623,16 +626,78 @@ class TextDetector:
                 )
             self._report_fallback(recognizer)
 
-        texts = []
-        for rect in rects:
+        if not _is_image(color) or color.shape[:2] != gray.shape[:2]:
+            color_frame = gray
+        else:
+            color_frame = color
+
+        texts: list[TextDetectionResult | None] = [None] * len(rects)
+        # Digit Tesseract models cannot read 队名. When the weights are on
+        # disk, those boxes wait for PP-OCR instead of publishing garbage digits.
+        chinese_at = [
+            index
+            for index, rect in enumerate(rects)
+            if rect is not None
+            and cn_reading.is_chinese_text_name(getattr(rect, "name", None))
+        ]
+        if chinese_at:
+            recognizer = self._ppocr_for_chinese_names()
+            if recognizer is not None:
+                subset = [rects[index] for index in chinese_at]
+                part = self._detect_ppocr(
+                    recognizer,
+                    recognizer,
+                    True,
+                    subset,
+                    gray,
+                    color_frame,
+                    get_binary,
+                    width,
+                    height,
+                    display,
+                )
+                for index, result in zip(chinese_at, part):
+                    texts[index] = result
+            elif ppocr_engine.available(ppocr_engine.SMALL):
+                for index in chinese_at:
+                    texts[index] = _empty_result()
+
+        for index, rect in enumerate(rects):
+            if texts[index] is not None:
+                continue
             try:
-                texts.append(
-                    self._detect_box(rect, gray, get_binary, width, height, display)
+                texts[index] = self._detect_box(
+                    rect, gray, get_binary, width, height, display
                 )
             except Exception:
                 self._log_box_error(rect)
-                texts.append(_empty_result())
+                texts[index] = _empty_result()
         return texts
+
+    def _ppocr_for_chinese_names(self):
+        """PP-OCR small for 队名 when the selected engine is Tesseract.
+
+        None if the weights are missing, or the model is still loading (the
+        box stays empty until the next frame)."""
+        if not ppocr_engine.available(ppocr_engine.SMALL):
+            if not self._chinese_ppocr_missing_logged:
+                self._chinese_ppocr_missing_logged = True
+                logger.error(
+                    "队名需要 PP-OCR 字库（简体中文在模型里）。当前是 Tesseract，"
+                    "便携包没有 chi_sim，汉字读不出来。请换 PP-OCR（自动）。"
+                )
+            return None
+        recognizer = ppocr_engine.get_recognizer(ppocr_engine.SMALL)
+        if recognizer.state == ppocr_engine.NOT_LOADED:
+            recognizer.start_loading()
+            if not self._chinese_ppocr_logged:
+                self._chinese_ppocr_logged = True
+                logger.info(
+                    "队名改用 PP-OCR 读取：当前 OCR 模型是 Tesseract，字库里没有汉字"
+                )
+        if recognizer.state != ppocr_engine.READY:
+            return None
+        return recognizer
 
     def _report_fallback(self, recognizer):
         self._ensure_fallback_api()
@@ -875,6 +940,10 @@ class TextDetector:
             settings,
             CHAR_WHITELISTS.get(settings.get("type"), GENERAL_CHAR_WHITELIST),
         )
+        if not whitelist:
+            # None means "PP-OCR's whole charset" (Chinese team names). The
+            # bundled Tesseract models have no chi_sim, so stay on ASCII.
+            whitelist = GENERAL_CHAR_WHITELIST
         want_confidence = settings.get("conf_thresh") is not None
         pilimage = Image.fromarray(patch)
 
@@ -977,7 +1046,10 @@ class TextDetector:
             if not re.fullmatch(format_regex, text):
                 # Tenths the saved preset still rejects: game clock mm:ss.d /
                 # s.d, and a shot clock's 4.9. Scores stay on their integer regex.
+                # 队名 / 文本: a digit expression must not throw away 汉字.
                 if cn_reading.soft_accept_reading(box_name, text, settings):
+                    textstate = ResultState.Success
+                elif cn_reading.keep_free_text(box_name, text, settings, format_regex):
                     textstate = ResultState.Success
                 else:
                     textstate = ResultState.FailedFilter

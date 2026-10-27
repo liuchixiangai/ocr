@@ -40,6 +40,7 @@ SELF_TEST_MODULES = (
     "auto_layout",
     "auto_layout_ui",
     "base_video_capture",
+    "box_pick",
     "box_settings_ui_handler",
     "camera_info",
     "camera_thread",

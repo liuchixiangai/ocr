@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from defaults import SHOT_CLOCK_FORMAT
+from defaults import SHOT_CLOCK_FORMAT, format_rejects_cjk, is_chinese_text_name
 from sports import CLOCK, PERIOD, SHOT_CLOCK, role_of
 
 # 一..十 for quarter / period labels (basketball rarely past 4 + OT)
@@ -297,12 +297,46 @@ def prepare_reading(name: str | None, text: str, settings: dict | None = None) -
 _TENTH_WHITELIST = "0123456789.,:·•・．"
 
 
-def whitelist_for_box(name: str | None, settings: dict | None, default_for_type) -> str:
+def is_free_text_box(name: str | None, settings: dict | None = None) -> bool:
+    """队名 / 文本: PP-OCR may emit any character the model knows.
+
+    Scores, clocks and the period stay on their narrow lists (checked by
+    whitelist_for_box before this). A box named 主队队名 is free text even
+    when an older config still stored it as a digit field.
+    """
+    if is_chinese_text_name(name):
+        return True
+    settings = settings or {}
+    try:
+        return int(settings.get("type")) == 2
+    except (TypeError, ValueError):
+        return False
+
+
+def keep_free_text(
+    name: str | None, text: str, settings: dict | None, format_regex: str | None
+) -> bool:
+    """Keep a Chinese (or other) reading a digit format would drop.
+
+    Only when this box is free text and the expression cannot match 汉字.
+    A custom expression that already allows 广东 is left to fullmatch.
+    """
+    if not text or not is_free_text_box(name, settings):
+        return False
+    return format_rejects_cjk(format_regex)
+
+
+def whitelist_for_box(name: str | None, settings: dict | None, default_for_type):
     """Char whitelist; period boxes allow Chinese 第N节 glyphs.
 
     Shot clocks and game clocks must be allowed to emit a decimal point.
     A digits-only whitelist drops the dot and the last seconds come out as
     `49` or nothing.
+
+    Free text / 队名 returns None: PP-OCR then uses its whole character list
+    (PP-OCRv6 small and tiny both include simplified Chinese). Tesseract has
+    no chi_sim in the portable pack, so the Tesseract path substitutes the
+    ASCII list itself.
     """
     settings = settings or {}
     if is_shot_clock_box(name, settings):
@@ -312,6 +346,8 @@ def whitelist_for_box(name: str | None, settings: dict | None, default_for_type)
         return "".join(dict.fromkeys(base + _TENTH_WHITELIST))
     if is_period_box(name, settings):
         return PERIOD_CHAR_WHITELIST
+    if is_free_text_box(name, settings):
+        return None
     return default_for_type
 
 

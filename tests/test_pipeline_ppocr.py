@@ -378,7 +378,12 @@ def test_ppocr_reads_every_box_in_one_batch_from_the_colour_frame(
     [(crops, whitelists)] = ppocr_detector.choice.calls
     # the colour crops, untouched by the boxes' Image cleanup settings
     assert crops[0].shape == (60, 80, 3) and crops[0][5, 5, 2] == 200
-    assert whitelists == [NUMBER, TIME, GENERAL_CHAR_WHITELIST]
+    # The score stays on digits. The text box is not limited to ASCII: None
+    # lets PP-OCR use its Chinese charset. The clock is not opened up to 汉字.
+    assert whitelists[0] == NUMBER
+    assert whitelists[2] is None
+    assert "广" not in (whitelists[1] or "")
+    assert ":" in whitelists[1]
     assert results[0].extra["confidence"] == pytest.approx(97.0)
     # the batch's time goes to PP-OCR (automatic)
     assert ppocr_detector.choice.records == [(ppocr_engine.SMALL, 3, None)]

@@ -33,7 +33,9 @@ from PySide6.QtWidgets import QFormLayout, QMenu
 import theme
 from defaults import (
     CLEAR_VALUES,
+    FieldType,
     default_info_for_box_name,
+    format_rejects_cjk,
     normalize_settings_dict,
     format_prefixes,
 )
@@ -278,6 +280,29 @@ class BoxSettingsUIHandler:
         if 0 <= index < len(CLEAR_VALUES):
             self.genericSettingsChanged("clear_value", CLEAR_VALUES[index])
 
+    def fieldTypeChanged(self, index):
+        """Switching to 文本/队名 must not keep a digit format or the score debounce."""
+        self.genericSettingsChanged("type", index)
+        try:
+            text_type = int(index) == int(FieldType.TEXT)
+        except (TypeError, ValueError):
+            return
+        if not text_type:
+            return
+        regex = self.ui.lineEdit_format.text()
+        if format_rejects_cjk(regex):
+            any_text = 10
+            if self.ui.comboBox_formatPrefix.currentIndex() != any_text:
+                self.ui.comboBox_formatPrefix.setCurrentIndex(any_text)
+            else:
+                self.ui.lineEdit_format.setText(format_prefixes[any_text])
+        stack = getattr(self.ui, "spinBox_led_stack_frames", None)
+        stable = getattr(self.ui, "spinBox_led_stable_ms", None)
+        if stack is not None and stack.value() != 0:
+            stack.setValue(0)
+        if stable is not None and stable.value() != 0:
+            stable.setValue(0)
+
     def formatPrefixChanged(self, index):
         if index == CUSTOM_PRESET_INDEX:
             # "Custom": type an expression
@@ -310,9 +335,7 @@ class BoxSettingsUIHandler:
             partial(self.genericSettingsChanged, "format_regex")
         )
         self.ui.lineEdit_format.textChanged.connect(self.updateFormatState)
-        self.ui.comboBox_fieldType.currentIndexChanged.connect(
-            partial(self.genericSettingsChanged, "type")
-        )
+        self.ui.comboBox_fieldType.currentIndexChanged.connect(self.fieldTypeChanged)
         self.ui.checkBox_skip_similar_image.toggled.connect(
             partial(self.genericSettingsChanged, "skip_similar_image")
         )
