@@ -9,6 +9,7 @@ import platform
 import sys
 import time
 import cv2
+import numpy as np
 import threading
 
 from base_video_capture import BaseVideoCapture
@@ -118,16 +119,30 @@ OBS_FORMAT_SIZE_LIMIT = 3
 # first (no size), then this many canvases. A failed MSMF read can block for
 # about 10 s, so this stays at one extra size.
 OBS_MSMF_SIZE_LIMIT = 1
-# Peak (0–255) at or under this is the empty buffer OBS delivers for a size it
-# is not outputting. Scoreboard digits sit far above it.
-BLANK_FRAME_PEAK = 8
+# Limited-range video black is 16. The empty OBS buffer is a flat field at or
+# under that (every sample 0, or a flat Y=16). A dark LED board can keep its
+# brightest digit at 8 or below and still be readable: those digits spread the
+# samples, so a low peak on its own is not a blank frame.
+BLANK_FRAME_LEVEL = 16
+# Population variance of the strided view, on the samples at or under
+# BLANK_FRAME_LEVEL. Flat 0 and flat 16 are 0. Thin digits at value 6 on a
+# 1080p canvas measure about 0.4; a board measures about 1. A flat field with
+# a little noise stays under this. Above it, the frame has a picture.
+BLANK_FRAME_VARIANCE = 0.15
+# Variance and the bright-pixel count use every Nth pixel (all of its
+# channels). A flattened stride would skip the green channel and could miss
+# a digit. Large frames only: a 640×480 probe is already small, and a tighter
+# stride would drop a thin stroke. One pass here is the dark-frame path;
+# a normal picture returns on the full-frame peak plus a cheap count.
+_BLANK_STRIDE_MIN_PIXELS = 640 * 480
+_BLANK_STRIDE = 4
 # Blank frames to look at before giving up on a size. A failed read stops at
 # once: that is the grabber timing out, not a warmup frame.
 OBS_PROBE_READS = 8
 # Consecutive blank frames while a picture was already open before the banner
 # says the virtual camera has no picture. At the capture loop's 30 ms pace
-# this is about half a second, so a one-frame dip does not warn.
-OBS_BLANK_STREAK = 15
+# this is about a second, so a short fade to black does not flash the tip.
+OBS_BLANK_STREAK = 30
 # How long a new open waits for the previous OBS graph to release. Refresh
 # and a source change close the viewer first; this is the backstop when that
 # read is still inside OpenCV's 1 s grabber wait.
@@ -572,28 +587,88 @@ def _enumerate_msmf_friendly_names_win() -> list[str]:
 _OBS_GRAPH_LOCK = threading.Lock()
 
 
-def frame_is_blank(frame) -> bool:
-    """True when no pixel is above BLANK_FRAME_PEAK.
+def _blank_view(frame):
+    """A spatial subsample of a large frame. Small probes are used whole."""
+    if getattr(frame, "ndim", 0) < 2:
+        return frame
+    height = int(frame.shape[0])
+    width = int(frame.shape[1])
+    if height * width < _BLANK_STRIDE_MIN_PIXELS:
+        return frame
+    return frame[::_BLANK_STRIDE, ::_BLANK_STRIDE]
 
-    A failed OBS format negotiation still returns a frame, and every pixel is
-    0. A scoreboard picture is not.
+
+def _speck_limit(sample_count: int) -> int:
+    """Bright samples that are still just a speck, not a digit.
+
+    One BGR pixel is 3 samples. A readable digit on a strided 1080p view is
+    hundreds of samples, so it clears this. The floor keeps a single hot
+    pixel blank on a tiny probe as well.
     """
-    if frame is None or not getattr(frame, "size", 0):
+    return max(12, int(sample_count) // 5000)
+
+
+def _population_variance(values) -> float:
+    if getattr(values, "size", 0) == 0:
+        return 0.0
+    # float32: uint8.var() is a much slower path, and this only runs when the
+    # frame is already known to be near black.
+    return float(np.var(np.asarray(values, dtype=np.float32)))
+
+
+def frame_is_blank(frame) -> bool:
+    """True when the frame is the empty OBS buffer, not a dark scoreboard.
+
+    Empty is a flat field at or under limited-range black (all zeros, or a
+    flat 16), including a black field with a few hot pixels. A low peak is
+    not enough: digits at value 6–8 still spread the samples, and that frame
+    is a picture. A flat white or grey program is a picture too.
+    """
+    if frame is None:
         return True
     try:
-        peak = float(frame.max())
-    except (TypeError, ValueError, AttributeError):
+        values = np.asarray(frame)
+    except (TypeError, ValueError):
         return True
-    return (not math.isfinite(peak)) or peak <= BLANK_FRAME_PEAK
+    if values.size == 0 or values.dtype == object:
+        return True
+    try:
+        peak = float(np.max(values))
+    except (TypeError, ValueError):
+        return True
+    if not math.isfinite(peak):
+        return True
+    # The failed negotiation buffer is exact zeros. This is the common case
+    # and does not need a variance pass.
+    if peak <= 0:
+        return True
+    view = _blank_view(values)
+    try:
+        if peak > BLANK_FRAME_LEVEL:
+            bright = int(np.count_nonzero(view > BLANK_FRAME_LEVEL))
+            if bright > _speck_limit(view.size):
+                return False
+            dark = view[view <= BLANK_FRAME_LEVEL]
+            variance = _population_variance(dark)
+        else:
+            variance = _population_variance(view)
+    except (TypeError, ValueError):
+        return True
+    if not math.isfinite(variance):
+        return True
+    return variance <= BLANK_FRAME_VARIANCE
 
 
-def capture_delivers_picture(capture, reads: int = OBS_PROBE_READS) -> bool:
+def capture_delivers_picture(
+    capture, reads: int = OBS_PROBE_READS, stop_check=None
+) -> bool:
     """True when one of the next reads is a non-blank frame.
 
     A read that fails ends the probe: the grabber timed out because the buffer
     size does not match, and the next read will not start a picture. Blank
     frames are looked at up to `reads` times, so a few empty frames at the
-    start of a good graph are skipped.
+    start of a good graph are skipped. `stop_check` is polled between reads
+    (a read already inside OpenCV's grabber wait cannot be interrupted).
     """
     try:
         reads = int(reads)
@@ -602,6 +677,13 @@ def capture_delivers_picture(capture, reads: int = OBS_PROBE_READS) -> bool:
     if reads < 1:
         reads = 1
     for _ in range(reads):
+        if stop_check is not None:
+            try:
+                if stop_check():
+                    return False
+            except Exception:
+                logger.exception("OBS open stop check failed")
+                return False
         try:
             ok, frame = capture.read()
         except cv2.error:
@@ -611,6 +693,13 @@ def capture_delivers_picture(capture, reads: int = OBS_PROBE_READS) -> bool:
         if not frame_is_blank(frame):
             return True
     return False
+
+
+def _release_capture(capture) -> None:
+    try:
+        capture.release()
+    except Exception:
+        logger.debug("Releasing a capture failed", exc_info=True)
 
 
 def camera_open_ceiling(source_name: str | None) -> tuple[int, int]:
@@ -961,6 +1050,9 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         The graph lock is held until release() so a refresh cannot open a
         second graph while this one still exists.
         """
+        if self._stop_requested():
+            logger.info("OBS Virtual Camera: open cancelled")
+            return _UnopenedCapture()
         if not self._acquire_obs_graph():
             return _UnopenedCapture()
         try:
@@ -1047,40 +1139,81 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
                 code = fourcc_code(fourcc) if fourcc else None
                 if code is not None:
                     params.extend((cv2.CAP_PROP_FOURCC, int(code)))
+            # A probe that raises must still release this graph. Leaving it
+            # open holds OBS's exclusive pin while the next size is tried.
+            capture = None
             try:
-                capture = self._create_capture(backend, params, device_id)
-            except cv2.error:
-                logger.info(
-                    "OBS Virtual Camera: %s %s could not be opened", label, size
-                )
-                continue
-            if (
-                backend == cv2.CAP_MSMF
-                and width is not None
-                and height is not None
-                and capture.isOpened()
-            ):
-                # The constructor does not apply a size on MSMF. set() does.
-                code = fourcc_code(fourcc) if fourcc else None
-                if code is not None:
-                    capture.set(cv2.CAP_PROP_FOURCC, int(code))
-                capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(width))
-                capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(height))
-            if not capture.isOpened():
-                capture.release()
-                logger.info("OBS Virtual Camera: %s %s did not open", label, size)
-                continue
-            if capture_delivers_picture(capture):
+                try:
+                    capture = self._create_capture(backend, params, device_id)
+                except cv2.error:
+                    logger.info(
+                        "OBS Virtual Camera: %s %s could not be opened", label, size
+                    )
+                    continue
+                try:
+                    opened = bool(capture.isOpened())
+                except cv2.error:
+                    opened = False
+                if (
+                    opened
+                    and backend == cv2.CAP_MSMF
+                    and width is not None
+                    and height is not None
+                ):
+                    # The constructor does not apply a size on MSMF. set() does.
+                    try:
+                        code = fourcc_code(fourcc) if fourcc else None
+                        if code is not None:
+                            capture.set(cv2.CAP_PROP_FOURCC, int(code))
+                        capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(width))
+                        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(height))
+                    except cv2.error:
+                        logger.info(
+                            "OBS Virtual Camera: %s %s could not be sized",
+                            label,
+                            size,
+                        )
+                        continue
+                if not opened:
+                    logger.info("OBS Virtual Camera: %s %s did not open", label, size)
+                    continue
+                if self._stop_requested():
+                    logger.info("OBS Virtual Camera: open cancelled during %s", label)
+                    return None
+                try:
+                    picture = capture_delivers_picture(
+                        capture, stop_check=self._stop_requested
+                    )
+                except Exception:
+                    logger.exception(
+                        "OBS Virtual Camera: %s %s probe failed", label, size
+                    )
+                    picture = False
+                if self._stop_requested():
+                    logger.info("OBS Virtual Camera: open cancelled during %s", label)
+                    return None
+                if not picture:
+                    logger.info(
+                        "OBS Virtual Camera: %s %s had no picture; releasing it",
+                        label,
+                        size,
+                    )
+                    continue
+                kept = capture
+                capture = None
                 self.backend = backend
-                self._stale_grabs = request_latest_frame_buffer(capture)
+                try:
+                    self._stale_grabs = request_latest_frame_buffer(kept)
+                except Exception:
+                    logger.exception(
+                        "OBS Virtual Camera: could not shorten the frame queue"
+                    )
+                    self._stale_grabs = 0
                 logger.info("OBS Virtual Camera: picture via %s at %s", label, size)
-                return capture
-            logger.info(
-                "OBS Virtual Camera: %s %s had no picture; releasing it",
-                label,
-                size,
-            )
-            capture.release()
+                return kept
+            finally:
+                if capture is not None:
+                    _release_capture(capture)
         return None
 
     def _apply_settings(self, capture, opening: bool):

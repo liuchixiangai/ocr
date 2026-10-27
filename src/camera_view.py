@@ -358,6 +358,7 @@ class CameraView(QGraphicsView):
                 thread.update_error,
                 thread.processing_error,
                 thread.ocr_result_signal,
+                thread.blank_preview,
             ):
                 try:
                     signal.disconnect()

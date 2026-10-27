@@ -3923,6 +3923,78 @@ def test_obs_blank_frames_show_the_hint_and_a_picture_clears_it(make_window):
     assert window.ui.frame_sourceError.isVisibleTo(window)
 
 
+def test_the_obs_hint_is_chinese_and_vmix_does_not_get_it(qapp):
+    import source_bar
+    from resource_path import resource_path
+
+    translator = QTranslator()
+    assert translator.load(str(resource_path("translations", "scoresight_zh_CN.qm")))
+    qapp.installTranslator(translator)
+    try:
+        what, hint = source_bar.source_error_text(
+            CameraInfo("OBS Virtual Camera", "obs", 0, CameraInfo.CameraType.OPENCV)
+        )
+        assert what == "无法显示 OBS 虚拟摄像机的画面。"
+        assert "启动虚拟摄像机" in hint
+        vmix_what, vmix_hint = source_bar.source_error_text(
+            CameraInfo("vMix Video", "vmix", 1, CameraInfo.CameraType.OPENCV)
+        )
+        assert "vMix Video" in vmix_what
+        assert "启动虚拟摄像机" not in vmix_what
+        assert "启动虚拟摄像机" not in vmix_hint
+    finally:
+        qapp.removeTranslator(translator)
+
+
+def test_a_queued_blank_from_the_previous_capture_does_not_mark_the_new_one(
+    make_window,
+):
+    window = make_window()
+    window.show()
+
+    class Live(FakeTimerThread):
+        blank_preview = Signal(bool)
+
+    live = Live()
+    window.image_viewer = FakeViewer(
+        CameraInfo("OBS Virtual Camera", "obs", 0, CameraInfo.CameraType.OPENCV),
+        None,
+        None,
+        None,
+    )
+    window.image_viewer.timerThread = live
+    window.cameraConnectedEnableUI()
+
+    class Stale(QObject):
+        blank_preview = Signal(bool)
+
+    stale = Stale()
+    stale.blank_preview.connect(window.updateObsBlankPreview)
+    stale.blank_preview.emit(True)
+    assert window.sourceError is None
+    assert not window.ui.frame_sourceError.isVisibleTo(window)
+
+    live.blank_preview.emit(True)
+    assert window.sourceError == "obs-blank"
+    assert "Start Virtual Camera" in window.ui.label_sourceError.text()
+    # The capture refresh already replaced must not clear the live warning.
+    stale.blank_preview.emit(False)
+    assert window.sourceError == "obs-blank"
+
+    # And it must not raise the banner on the source that is open now.
+    window.sourceError = None
+    window.image_viewer = FakeViewer(
+        CameraInfo("vMix Video", "vmix", 1, CameraInfo.CameraType.OPENCV),
+        None,
+        None,
+        None,
+    )
+    window.image_viewer.timerThread = Live()
+    live.blank_preview.emit(True)
+    stale.blank_preview.emit(True)
+    assert window.sourceError is None
+
+
 def test_the_source_banner_asks_for_the_screen_recording_permission(
     make_window, monkeypatch
 ):

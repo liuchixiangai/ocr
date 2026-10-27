@@ -842,15 +842,57 @@ def test_obs_canvas_order_tries_the_stored_size_once():
     assert sizes[0] == (1920, 1080)
     assert sizes.count((1920, 1080)) == 1
     assert (1280, 720) in sizes
+    # A float from the driver truncates onto the same canvas and is not asked twice.
+    floated = camera_thread.obs_canvas_attempts(1920.9, 1080.2)
+    assert floated[0] == (1920, 1080)
+    assert floated.count((1920, 1080)) == 1
+    assert floated == sizes
     odd = camera_thread.obs_canvas_attempts(800, 600)
     assert odd[0] == (800, 600)
     assert odd[1] == camera_thread.OBS_CANVAS_SIZES[0]
+    # One side missing is not a size. The list stays the common canvases.
+    assert camera_thread.obs_canvas_attempts(1920, None) == list(
+        camera_thread.OBS_CANVAS_SIZES
+    )
+    assert camera_thread.obs_canvas_attempts(None, 1080) == list(
+        camera_thread.OBS_CANVAS_SIZES
+    )
+    # Format retries and the one MSMF size start at that stored canvas too.
+    legacy = camera_thread.obs_format_attempts("OBS-Camera", 800, 600)
+    assert legacy[0] == (800, 600, "YUY2")
+    assert legacy[1] == (800, 600, "NV12")
+    msmf = camera_thread.obs_msmf_attempts(800, 600)
+    assert msmf[0] == (None, None, None)
+    assert msmf[1] == (800, 600, None)
+    assert len(msmf) == 1 + camera_thread.OBS_MSMF_SIZE_LIMIT
+
+
+def _dark_led_board(height, width):
+    """A panel whose brightest digit is still at or under the old peak of 8."""
+    frame = np.full((height, width, 3), 3, np.uint8)
+    frame[height // 5 : height // 2, width // 5 : width // 2] = 8
+    assert int(frame.max()) <= 8
+    return frame
 
 
 def test_a_black_frame_is_blank_and_a_scoreboard_is_not():
     assert camera_thread.frame_is_blank(None)
+    assert camera_thread.frame_is_blank(np.array([]))
     assert camera_thread.frame_is_blank(np.zeros((8, 8, 3), np.uint8))
+    # Limited-range black is flat 16, not 0. It is still an empty buffer.
+    assert camera_thread.frame_is_blank(np.full((32, 32, 3), 16, np.uint8))
     assert not camera_thread.frame_is_blank(color_frame())
+    # The old peak<=8 rule called both of these blank. The digits are the picture.
+    assert not camera_thread.frame_is_blank(_dark_led_board(180, 320))
+    assert not camera_thread.frame_is_blank(_dark_led_board(540, 960))
+    # One hot pixel on a large black frame is not a scoreboard.
+    speck = np.zeros((540, 960, 3), np.uint8)
+    speck[10, 10] = (255, 255, 255)
+    assert camera_thread.frame_is_blank(speck)
+    speck[8, 8] = (255, 255, 255)
+    assert camera_thread.frame_is_blank(speck)
+    # A flat grey program is a picture, not the empty buffer.
+    assert not camera_thread.frame_is_blank(np.full((32, 32, 3), 40, np.uint8))
 
 
 def test_a_failed_read_ends_the_probe_and_blank_frames_do_not():
@@ -984,6 +1026,10 @@ def test_blank_streak_warns_once_and_clears_when_a_picture_returns():
     assert (streak, event) == (0, "clear")
     streak, event = camera_thread.note_obs_blank(0, False)
     assert (streak, event) == (0, None)
+    # A picture before the streak is long enough resets it and does not clear
+    # a warning that was never shown.
+    streak, event = camera_thread.note_obs_blank(3, False)
+    assert (streak, event) == (0, None)
 
 
 def test_exact_obs_name_does_not_repeat_a_fourcc_opencv_overwrites():
@@ -1013,6 +1059,9 @@ def test_msmf_index_is_the_friendly_name_not_the_directshow_slot():
     assert msmf_index_for_name(names, "OBS Virtual Camera Extra") is None
     assert msmf_index_for_name([], "OBS Virtual Camera") is None
     assert msmf_index_for_name(None, "OBS Virtual Camera") is None
+    # Index 0 is a real Media Foundation slot. Missing is None, not "use 0".
+    assert msmf_index_for_name(["OBS Virtual Camera"], "OBS Virtual Camera") == 0
+    assert msmf_index_for_name(["Magewell USB Capture"], "OBS Virtual Camera") is None
 
 
 def test_obs_open_stops_when_refresh_asks_the_thread_to_stop(
@@ -1119,6 +1168,194 @@ def test_black_directshow_opens_msmf_by_name_not_by_directshow_index(
         for device in ByBackend.instances
     )
     capture.release()
+
+
+def test_msmf_index_zero_is_used_and_a_missing_name_never_borrows_directshow(
+    fake_video_capture, monkeypatch
+):
+    """DirectShow index 0 can be a capture card. Media Foundation must not open it
+    unless that index is where the friendly name actually sits."""
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+
+    class ByBackend(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            if (
+                self.backend == cv2.CAP_MSMF
+                and self.capture_id == 0
+                and not self.params
+            ):
+                return True, color_frame()
+            return True, np.zeros((8, 8, 3), np.uint8)
+
+    monkeypatch.setattr(cv2, "VideoCapture", ByBackend)
+    monkeypatch.setattr(
+        camera_thread,
+        "msmf_friendly_names",
+        lambda: ["OBS Virtual Camera", "Magewell USB Capture"],
+    )
+    capture = OpenCVVideoCaptureWithSettings(
+        4,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert capture.isOpened()
+    kept = [device for device in ByBackend.instances if not device.released]
+    assert len(kept) == 1
+    assert kept[0].backend == cv2.CAP_MSMF
+    assert kept[0].capture_id == 0
+    assert not any(
+        device.backend == cv2.CAP_MSMF and device.capture_id == 4
+        for device in ByBackend.instances
+    )
+    capture.release()
+
+    FakeVideoCapture.instances.clear()
+    monkeypatch.setattr(
+        camera_thread,
+        "msmf_friendly_names",
+        lambda: ["Magewell USB Capture", "HD Pro Webcam"],
+    )
+
+    class AlwaysBlack(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            return True, np.zeros((8, 8, 3), np.uint8)
+
+    monkeypatch.setattr(cv2, "VideoCapture", AlwaysBlack)
+    missed = OpenCVVideoCaptureWithSettings(
+        0,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert not missed.isOpened()
+    assert AlwaysBlack.instances
+    assert all(device.backend == cv2.CAP_DSHOW for device in AlwaysBlack.instances)
+    assert all(device.capture_id == 0 for device in AlwaysBlack.instances)
+    assert all(device.released for device in AlwaysBlack.instances)
+    missed.release()
+
+
+def test_a_dark_led_board_is_kept_and_flat_black_is_not(
+    fake_video_capture, monkeypatch
+):
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+    store_video_settings(width=1280, height=720)
+
+    class BySize(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            width = _param(self.params, cv2.CAP_PROP_FRAME_WIDTH)
+            if width == 1280:
+                return True, np.full((8, 8, 3), 16, np.uint8)
+            if width == 1920:
+                return True, _dark_led_board(180, 320)
+            return True, np.zeros((8, 8, 3), np.uint8)
+
+    monkeypatch.setattr(cv2, "VideoCapture", BySize)
+    capture = OpenCVVideoCaptureWithSettings(
+        2,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert capture.isOpened()
+    kept = [device for device in BySize.instances if not device.released]
+    assert len(kept) == 1
+    assert _param(kept[0].params, cv2.CAP_PROP_FRAME_WIDTH) == 1920
+    assert BySize.instances[0].released
+    capture.release()
+
+
+def test_a_probe_that_raises_still_releases_the_graph(fake_video_capture, monkeypatch):
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+
+    class Boom(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            raise RuntimeError("sample grabber")
+
+    monkeypatch.setattr(cv2, "VideoCapture", Boom)
+    capture = OpenCVVideoCaptureWithSettings(
+        1,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert not capture.isOpened()
+    assert Boom.instances
+    assert all(device.released for device in Boom.instances)
+    assert len(Boom.instances) == len(camera_thread.OBS_CANVAS_SIZES)
+    capture.release()
+    # The graph lock was given back, so another open is not stuck behind it.
+    monkeypatch.setattr(cv2, "VideoCapture", FakeVideoCapture)
+    FakeVideoCapture.instances.clear()
+    nxt = OpenCVVideoCaptureWithSettings(
+        1,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+    )
+    assert nxt.isOpened()
+    nxt.release()
+
+
+def test_obs_open_stops_during_a_read(fake_video_capture, monkeypatch):
+    monkeypatch.setattr(camera_thread.platform, "system", lambda: "Windows")
+    state = {"stop": False}
+
+    class FirstRead(FakeVideoCapture):
+        def read(self):
+            self.calls.append("read")
+            state["stop"] = True
+            return True, np.zeros((8, 8, 3), np.uint8)
+
+    monkeypatch.setattr(cv2, "VideoCapture", FirstRead)
+    capture = OpenCVVideoCaptureWithSettings(
+        3,
+        cv2.CAP_DSHOW,
+        apply_video_settings=True,
+        source_name="OBS Virtual Camera",
+        stop_check=lambda: state["stop"],
+    )
+    assert not capture.isOpened()
+    assert len(FirstRead.instances) == 1
+    assert FirstRead.instances[0].released
+    capture.release()
+
+
+def test_vmix_frames_never_raise_the_obs_blank_warning():
+    class Sink:
+        def __init__(self):
+            self.events = []
+
+        def emit(self, value):
+            self.events.append(value)
+
+    def watch(name):
+        holder = type("Holder", (), {})()
+        holder.camera_info = CameraInfo(name, "0", 0, CameraInfo.CameraType.OPENCV)
+        holder._obs_blank_streak = 0
+        holder.blank_preview = Sink()
+        return holder
+
+    vmix = watch("vMix Video")
+    black = np.zeros((32, 32, 3), np.uint8)
+    for _ in range(camera_thread.OBS_BLANK_STREAK + 5):
+        TimerThread._observe_obs_frame(vmix, black)
+    TimerThread._observe_obs_frame(vmix, color_frame())
+    assert vmix.blank_preview.events == []
+    assert vmix._obs_blank_streak == 0
+
+    obs = watch("OBS Virtual Camera")
+    for _ in range(camera_thread.OBS_BLANK_STREAK):
+        TimerThread._observe_obs_frame(obs, black)
+    assert obs.blank_preview.events == [True]
+    TimerThread._observe_obs_frame(obs, _dark_led_board(180, 320))
+    assert obs.blank_preview.events == [True, False]
+    assert obs._obs_blank_streak == 0
 
 
 def test_a_second_obs_open_waits_until_the_first_graph_is_released(

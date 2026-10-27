@@ -4415,8 +4415,17 @@ class MainWindow(QMainWindow):
         The banner is the same one as a failed open (start the virtual camera,
         then refresh). Tools stay usable so refresh still works. A real source
         error is not cleared by a later frame.
+
+        Refresh disconnects the old capture, but a blank signal already queued
+        on the GUI thread is still delivered. sender() is that old thread; it
+        must not mark the source that replaced it. A direct call has no sender
+        and still applies.
         """
         viewer = self.image_viewer
+        thread = getattr(viewer, "timerThread", None) if viewer is not None else None
+        sender = self.sender()
+        if sender is not None and sender is not thread:
+            return
         info = viewer.getCameraInfo() if viewer is not None else None
         if info is None or not is_obs_virtual_camera(
             getattr(info, "description", None)
