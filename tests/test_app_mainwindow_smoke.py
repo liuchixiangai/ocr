@@ -731,7 +731,12 @@ def test_language_change_keeps_the_output_controls(
     # retranslateUi reset the vMix/UNO start buttons to their .ui texts
     # ("Start"), the OBS scene name and the playback speed.
     ui = main_window.ui
-    main_window.detectionTargetsStorage.add_item(make_target("Home Score"))
+    # "Home Score" is a custom name in this fork (predefined boxes are
+    # Chinese), so it has no OBS source unless one is set. The status line
+    # below is the connected state, which needs a source name.
+    main_window.detectionTargetsStorage.add_item(
+        make_target("Home Score", obs_source_name="Home score")
+    )
     vmix = main_window.vmixUiHandler
     uno = main_window.unoUiHandler
     monkeypatch.setattr(vmix.vmixUpdater, "start", lambda: None, raising=False)
@@ -1897,17 +1902,63 @@ def test_the_outputs_are_destinations_over_their_pages(main_window):
     ui.listView_destinations.setCurrentIndex(destination_index(main_window, "vmix"))
     assert stack.currentWidget() is ui.tab_vmix
     assert ui.tab_vmix.isAncestorOf(ui.pushButton_startvmix)
+    assert main_window.outboundChooser.btn_api.isChecked()
+    assert not main_window.outboundChooser.btn_json.isChecked()
     # the keyboard moves between them
     QTest.keyClick(ui.listView_destinations, QtCore.Qt.Key.Key_Down)
     assert stack.currentWidget() is ui.tab_uno
-    # every destination shows without scrolling
+    assert not main_window.outboundChooser.btn_json.isChecked()
+    assert not main_window.outboundChooser.btn_api.isChecked()
+    # 光为 hides the destination list. The two path buttons are the navigation.
+    # Upstream (list visible) still has to show every row without scrolling.
     view = ui.listView_destinations
-    assert view.height() >= model.rowCount() * view.sizeHintForRow(0)
+    chooser = main_window.outboundChooser
+    if view.isVisible():
+        assert view.height() >= model.rowCount() * view.sizeHintForRow(0)
+    else:
+        assert chooser.btn_json.minimumHeight() == chooser.btn_api.minimumHeight()
+        assert chooser.btn_json.minimumHeight() >= 56
     # the state is told by a glyph and words too (never by colour alone)
     main_window.refreshLiveStatus()
     vmix = destination_index(main_window, "vmix")
     assert vmix.data(QtCore.Qt.ItemDataRole.AccessibleTextRole) == "vMix, off, Off"
     view.grab()  # paints every row
+
+
+def test_output_path_buttons_open_json_then_the_vmix_api(main_window):
+    """The Output tab leads with two equal buttons: JSON, then the vMix API."""
+    ui = main_window.ui
+    chooser = main_window.outboundChooser
+    guide = main_window.vmixOutboundGuide
+    layout = ui.verticalLayout_outputDetails
+    assert layout.itemAt(0).widget() is chooser
+    assert chooser.btn_json.minimumHeight() == chooser.btn_api.minimumHeight()
+    assert chooser.btn_json.minimumHeight() >= 56
+    assert chooser.btn_json.font().bold() and chooser.btn_api.font().bold()
+    assert ui.stackedWidget_outputs.currentWidget() is ui.tab_textFiles
+    assert chooser.btn_json.isChecked()
+    assert not chooser.btn_api.isChecked()
+    assert ui.checkBox_saveJson.isChecked()
+    assert guide.btn_copy_json.minimumHeight() >= 44
+    assert guide.label_path.text()
+    copy = guide.btn_copy_json.text()
+    assert copy in ("复制 JSON 路径", "Copy JSON path")
+
+    chooser.btn_api.click()
+    assert ui.stackedWidget_outputs.currentWidget() is ui.tab_vmix
+    assert chooser.btn_api.isChecked()
+    assert not chooser.btn_json.isChecked()
+    assert ui.tab_vmix.isAncestorOf(ui.btn_scan_vmix_fields)
+    assert ui.label_vmix_guide.isHidden()
+
+    ui.checkBox_saveJson.setChecked(False)
+    chooser.btn_json.click()
+    assert ui.stackedWidget_outputs.currentWidget() is ui.tab_textFiles
+    assert ui.checkBox_saveJson.isChecked()
+    assert chooser.btn_json.isChecked()
+    assert not chooser.btn_api.isChecked()
+    assert guide._highlighted
+    assert "results.json" in guide.label_path.text()
 
 
 def test_the_switches_mirror_the_output_controls(main_window):

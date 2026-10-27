@@ -604,6 +604,10 @@ def test_scan_button_sits_above_the_steps_and_is_the_filled_action(handler, scan
     lead = scan_ui.label_vmix_scan_lead.text()
     assert "给 vMix 的 JSON" in lead
     assert "进阶" in lead
+    assert scan_ui.label_vmix_guide.isHidden()
+    scan_ui.btn_vmix_api_steps.click()
+    assert not scan_ui.label_vmix_guide.isHidden()
+    assert "收起" in scan_ui.btn_vmix_api_steps.text()
 
 
 @pytest.mark.qt

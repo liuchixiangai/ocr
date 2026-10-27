@@ -101,16 +101,22 @@ class CnFirstRunWizard(QWizard):
                 ),
             ),
             (
-                _tr("看结果 / 接到 vMix"),
+                _tr("接到 vMix（用 JSON）"),
                 _tr(
-                    "<p><b>识别结果可以本地查看，也可推到 vMix。</b></p>"
+                    "<p><b>推荐：JSON → vMix 数据源。</b>一个文件就够。</p>"
                     "<ol>"
-                    "<li>浏览器打开 "
-                    "<code>http://localhost:18099/json?pivot</code> 看实时 JSON。</li>"
-                    "<li>菜单「工具」里开 vMix 输出（默认 API 端口 8088），用 SetText。</li>"
-                    "<li>网站/导播对接目前是<strong>预留</strong>，默认不打开。</li>"
+                    "<li>右边「输出」最上面点蓝色 <b>JSON → vMix 数据源</b>。</li>"
+                    "<li>勾选「给 vMix 的 JSON（推荐）」。"
+                    "文件写到桌面「光为OCR输出」里的 <b>results.json</b>。</li>"
+                    "<li>点 <b>复制 JSON 路径</b>。</li>"
+                    "<li>vMix → <b>Data Sources → + → JSON</b>，粘贴路径。"
+                    "Update 填 <b>100</b> 毫秒（填 1000 会一秒一跳）。</li>"
+                    "<li>标题用英文列名：home_score、away_score、game_clock、"
+                    "period、shot_clock、home_name、away_name。</li>"
                     "</ol>"
-                    "<p>链路：<b>摄像机 → 采集卡 → {app} → vMix / JSON</b></p>"
+                    "<p>标题已经做好、想直接改文字时，再点橙色 "
+                    "<b>进阶：vMix API</b>（扫描标题字段）。多数人用 JSON 就够。</p>"
+                    "<p>链路：<b>摄像机 → 采集卡 → {app} → JSON → vMix</b></p>"
                     "<p>点「完成」进入软件。向导只在首次强制走一遍。</p>"
                 ).format(app=APP_DISPLAY_NAME),
             ),

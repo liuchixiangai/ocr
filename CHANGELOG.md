@@ -22,6 +22,7 @@ not enabled.
 
 ### Changed
 
+- **输出页两个大按钮：JSON 和 vMix API。** 打开「输出」时，页面最上面并排是蓝色「JSON → vMix 数据源（推荐）」和橙色「进阶：vMix API」。点 JSON 进入说明、勾选「给 vMix 的 JSON」，并聚焦「复制 JSON 路径」（仍写到桌面「光为OCR输出\results.json」，英文列名）。点 API 进入扫描标题字段和映射；长说明默认收起。不再一打开就只剩 API 扫描。
 - **PP-OCR (automatic) for ordinary setups.** A new install still defaults to PP-OCR (automatic). An existing setup whose saved model is Tesseract: General Scoreboard or Tesseract: General Scoreboard Large is moved to PP-OCR (automatic) once, when the PP-OCR weights can be used, without opening the model list. Daktronics, General English, an external model and an existing PP-OCR (accurate) or (fast) choice stay as they are. Choosing Tesseract again afterwards is kept. Portable channel `2026.10.26.3`.
 
 ### Fixed

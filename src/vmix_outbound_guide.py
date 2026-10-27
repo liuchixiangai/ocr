@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-"""vMix-friendly outbound guide card for the Text-files destination.
+"""vMix outbound guide and the two-path chooser on the Output tab.
 
-Injected at runtime into tab_textFiles: big steps, one-click copy for
-results.json / results.csv paths, sample JSON, and a live write status.
-Does not change how FileOutput writes; it only guides the user.
+The guide card lives on the text-files page: short steps, a big
+「复制 JSON 路径」 button, the results.json path, and a live write status.
+The chooser sits above every output page so JSON → vMix Data Sources and
+the advanced vMix API are both one click away. It does not change how
+FileOutput writes.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ import os
 import time
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
@@ -21,11 +23,16 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from file_output import CSV_FILE_NAME, JSON_FILE_NAME, json_row_from_values
+from theme import is_dark
+
+JSON_PATH = "json"
+API_PATH = "api"
 
 SAMPLE_JSON = (
     "[\n"
@@ -56,7 +63,9 @@ class VmixOutboundGuide:
         self.btn_copy_csv: QPushButton | None = None
         self.btn_copy_sample: QPushButton | None = None
         self.btn_open_folder: QPushButton | None = None
+        self.label_path: QLabel | None = None
         self._advanced: QWidget | None = None
+        self._highlighted = False
 
     def install(self) -> None:
         if self._installed:
@@ -67,16 +76,7 @@ class VmixOutboundGuide:
         self.frame = QFrame(parent)
         self.frame.setObjectName("frame_vmixOutboundGuide")
         self.frame.setFrameShape(QFrame.StyledPanel)
-        self.frame.setStyleSheet(
-            "QFrame#frame_vmixOutboundGuide {"
-            " background-color: #1e3a5f; border: 1px solid #3b82f6;"
-            " border-radius: 6px; padding: 6px; }"
-            "QFrame#frame_vmixOutboundGuide QLabel { color: #e8f1ff; }"
-            "QFrame#frame_vmixOutboundGuide QPushButton {"
-            " background: #2563eb; color: white; border: none;"
-            " border-radius: 4px; padding: 6px 10px; font-weight: 600; }"
-            "QFrame#frame_vmixOutboundGuide QPushButton:hover { background: #1d4ed8; }"
-        )
+        self._apply_frame_style()
         v = QVBoxLayout(self.frame)
         v.setContentsMargins(10, 8, 10, 8)
         v.setSpacing(6)
@@ -98,18 +98,35 @@ class VmixOutboundGuide:
         )
         v.addWidget(self.label_steps)
 
+        self.btn_copy_json = QPushButton(self.frame)
+        self.btn_copy_json.setObjectName("btn_copyJsonPath")
+        self.btn_copy_json.setCursor(Qt.PointingHandCursor)
+        self.btn_copy_json.setMinimumHeight(44)
+        self.btn_copy_json.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        copy_font = self.btn_copy_json.font()
+        copy_font.setBold(True)
+        if copy_font.pointSize() > 0:
+            copy_font.setPointSize(min(copy_font.pointSize() + 1, 16))
+        self.btn_copy_json.setFont(copy_font)
+        v.addWidget(self.btn_copy_json)
+
+        self.label_path = QLabel(self.frame)
+        self.label_path.setObjectName("label_jsonPath")
+        self.label_path.setWordWrap(True)
+        self.label_path.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        path_font = self.label_path.font()
+        path_font.setBold(True)
+        self.label_path.setFont(path_font)
+        v.addWidget(self.label_path)
+
         row = QHBoxLayout()
         row.setSpacing(6)
-        self.btn_copy_json = QPushButton(self.frame)
         self.btn_copy_csv = QPushButton(self.frame)
         self.btn_copy_sample = QPushButton(self.frame)
         self.btn_open_folder = QPushButton(self.frame)
-        for b in (
-            self.btn_copy_json,
-            self.btn_copy_csv,
-            self.btn_copy_sample,
-            self.btn_open_folder,
-        ):
+        for b in (self.btn_copy_csv, self.btn_copy_sample, self.btn_open_folder):
             b.setCursor(Qt.PointingHandCursor)
             row.addWidget(b)
         row.addStretch(1)
@@ -174,26 +191,55 @@ class VmixOutboundGuide:
         self._advanced_body.setVisible(show)
         self.apply_texts(self._zh)
 
+    def _apply_frame_style(self) -> None:
+        if self.frame is None:
+            return
+        border = "#93c5fd" if self._highlighted else "#3b82f6"
+        width = "2px" if self._highlighted else "1px"
+        self.frame.setStyleSheet(
+            "QFrame#frame_vmixOutboundGuide {"
+            f" background-color: #1e3a5f; border: {width} solid {border};"
+            " border-radius: 8px; }"
+            "QFrame#frame_vmixOutboundGuide QLabel { color: #e8f1ff; }"
+            "QFrame#frame_vmixOutboundGuide QPushButton {"
+            " background: transparent; color: #dbeafe;"
+            " border: 1px solid #60a5fa; border-radius: 4px;"
+            " padding: 4px 8px; font-weight: 600; }"
+            "QFrame#frame_vmixOutboundGuide QPushButton:hover {"
+            " background: #1e40af; }"
+            "QFrame#frame_vmixOutboundGuide QPushButton#btn_copyJsonPath {"
+            " background: #2563eb; color: white; border: none;"
+            " border-radius: 6px; padding: 10px 14px; font-weight: 700; }"
+            "QFrame#frame_vmixOutboundGuide QPushButton#btn_copyJsonPath:hover {"
+            " background: #1d4ed8; }"
+        )
+
+    def set_highlighted(self, on: bool) -> None:
+        """Brighten the card when the JSON path button focuses it."""
+        self._highlighted = bool(on)
+        self._apply_frame_style()
+
     def apply_texts(self, zh: bool) -> None:
         self._zh = zh
         if not self._installed:
             return
         if zh:
-            self.label_title.setText("给 vMix 用：一个 JSON 就够（推荐）")
+            self.label_title.setText("推荐：JSON → vMix 数据源")
             self.label_steps.setText(
                 "<ol style='margin:0 0 0 18px; padding:0;'>"
-                "<li>勾选下方「给 vMix 的 JSON（推荐）」——文件自动写到桌面「光为OCR输出」</li>"
+                "<li>勾选下方「给 vMix 的 JSON（推荐）」——文件写到桌面「光为OCR输出」</li>"
                 "<li>打开 <b>vMix → Data Sources → + → JSON</b></li>"
-                "<li>粘贴路径（点下面「一键复制 JSON 路径」）→ Update 填 <b>100</b> 毫秒（不要填 1000，否则软件再快也会一秒一跳）</li>"
-                "<li>标题里用 Data Source 的英文列名绑定：<b>home_score / away_score / game_clock / period / home_fouls / away_fouls / shot_clock / home_name / away_name</b>——队名是 home_name、away_name（中文原样）。<b>不要</b>再加五个 Text 源</li>"
+                "<li>点「复制 JSON 路径」粘贴。Update 填 <b>100</b> 毫秒"
+                "（填 1000 会一秒一跳）</li>"
+                "<li>标题绑定英文列名：<b>home_score、away_score、game_clock、"
+                "period、shot_clock、home_name、away_name</b>。"
+                "不要再加一堆 Text 源</li>"
                 "</ol>"
                 "<p style='margin:4px 0 0 0;color:#bfdbfe;'>"
-                "vMix 刷新建议改成 100ms，否则软件再快也会一秒一跳。比赛时间和 24 秒最后几秒会带一位小数（如 game_clock 为 0:04.9、shot_clock 为 4.9），原样写出，不砍成整数。说明：vMix 的 JSON 列名必须是英文，软件已自动把「主队得分」等写成 home_score 等；CSV 仍可用中文表头。"
-                "备选：勾选 CSV 后，vMix 用 "
-                "<b>Data Sources → + → Excel/CSV/Google Sheets</b> 读 results.csv"
-                "（追加方式选「不追加」）。</p>"
+                "列名必须是英文，软件已自动转换。比赛时间和 24 秒的小数会原样写出。"
+                "备选才用 CSV（Data Sources → Excel/CSV）。</p>"
             )
-            self.btn_copy_json.setText("一键复制 JSON 路径")
+            self.btn_copy_json.setText("复制 JSON 路径")
             self.btn_copy_csv.setText("复制 CSV 路径")
             self.btn_copy_sample.setText("复制示例 JSON")
             self.btn_open_folder.setText("打开文件夹")
@@ -226,7 +272,6 @@ class VmixOutboundGuide:
                 else "▸ 高级格式（一般不用点开）"
             )
         else:
-            self.label_title.setText("vMix: one JSON file is enough")
             self.label_steps.setText(
                 "<ol style='margin:0 0 0 18px;padding:0;'>"
                 "<li>Tick JSON for vMix — files auto-write to Desktop\光为OCR输出</li>"
@@ -237,6 +282,7 @@ class VmixOutboundGuide:
                 "<p style='margin:4px 0 0 0;color:#bfdbfe;'>"
                 "Set vMix Update to 100 ms or the clock will jump once a second. vMix JSON keys must be ASCII; the app maps Chinese box names to English automatically. CSV may keep Chinese headers.</p>"
             )
+            self.label_title.setText("Recommended: JSON → vMix Data Sources")
             self.btn_copy_json.setText("Copy JSON path")
             self.btn_copy_csv.setText("Copy CSV path")
             self.btn_copy_sample.setText("Copy sample JSON")
@@ -273,6 +319,7 @@ class VmixOutboundGuide:
         json_p = self.json_path()
         csv_p = self.csv_path()
         parts = []
+        self._set_path_line(json_p, zh)
         if not folder:
             parts.append("还没选输出文件夹" if zh else "No output folder yet")
         else:
@@ -320,6 +367,18 @@ class VmixOutboundGuide:
             )
         self.label_status.setText("　|　".join(parts) if parts else "")
 
+    def _set_path_line(self, json_p: str | None, zh: bool) -> None:
+        if self.label_path is None:
+            return
+        if json_p:
+            self.label_path.setText(f"路径：{json_p}" if zh else f"Path: {json_p}")
+        else:
+            self.label_path.setText(
+                "路径：桌面\\光为OCR输出\\results.json"
+                if zh
+                else "Path: Desktop\\光为OCR输出\\results.json"
+            )
+
     def _copy(self, text: str, ok_msg: str) -> None:
         if not text:
             QMessageBox.information(
@@ -342,6 +401,7 @@ class VmixOutboundGuide:
         self._copy(
             path or "",
             "已复制 results.json 完整路径。到 vMix → Data Sources → + → JSON 里粘贴。"
+            " Update 填 100 毫秒。"
             if self._zh
             else "Copied results.json path. Paste in vMix Data Sources → JSON.",
         )
@@ -387,3 +447,136 @@ class VmixOutboundGuide:
         from PySide6.QtCore import QUrl
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+
+def _outbound_button_qss(kind: str, selected: bool, dark: bool) -> str:
+    """Both path buttons stay filled and the same size. The ring shows which
+    page is open. Blue is JSON; orange is the advanced API."""
+    if kind == "json":
+        bg, hover = ("#2563eb", "#1d4ed8") if dark else ("#1d4ed8", "#1e3a8a")
+        name = "btn_outboundJson"
+    else:
+        bg, hover = ("#c2410c", "#9a3412")
+        name = "btn_outboundApi"
+    border = "#f8fafc" if selected else "transparent"
+    return (
+        f"QPushButton#{name} {{"
+        f" background-color: {bg}; color: #ffffff;"
+        f" border: 3px solid {border}; border-radius: 8px;"
+        " padding: 8px 12px; font-weight: 700; }"
+        f"QPushButton#{name}:hover {{ background-color: {hover}; }}"
+    )
+
+
+def focus_json_outbound(ui, guide) -> None:
+    """Open the text-files page, tick JSON, and focus Copy JSON path."""
+    ui.stackedWidget_outputs.setCurrentWidget(ui.tab_textFiles)
+    checkbox = ui.checkBox_saveJson
+    if not checkbox.isChecked():
+        checkbox.setChecked(True)
+    if guide is not None and getattr(guide, "_installed", False):
+        guide.set_highlighted(True)
+        button = guide.btn_copy_json
+        if button is not None:
+            button.setFocus(Qt.FocusReason.OtherFocusReason)
+
+
+def focus_api_outbound(ui, guide=None) -> None:
+    """Open the vMix API page and focus the scan button."""
+    ui.stackedWidget_outputs.setCurrentWidget(ui.tab_vmix)
+    if guide is not None and getattr(guide, "_installed", False):
+        guide.set_highlighted(False)
+    scan = getattr(ui, "btn_scan_vmix_fields", None)
+    if scan is not None:
+        scan.setFocus(Qt.FocusReason.OtherFocusReason)
+
+
+class OutboundPathChooser(QWidget):
+    """Two equal buttons at the top of Output: JSON data source, or vMix API."""
+
+    path_selected = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("outboundPathChooser")
+        self._zh = True
+        self._guard = False
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 6)
+        layout.setSpacing(8)
+        self.btn_json = QPushButton(self)
+        self.btn_api = QPushButton(self)
+        self.btn_json.setObjectName("btn_outboundJson")
+        self.btn_api.setObjectName("btn_outboundApi")
+        for button in (self.btn_json, self.btn_api):
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            button.setMinimumHeight(56)
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            font = button.font()
+            font.setBold(True)
+            if font.pointSize() > 0:
+                font.setPointSize(min(font.pointSize() + 1, 16))
+            button.setFont(font)
+            layout.addWidget(button, 1)
+        self.btn_json.clicked.connect(lambda: self._choose(JSON_PATH))
+        self.btn_api.clicked.connect(lambda: self._choose(API_PATH))
+        self.apply_texts(True)
+
+    def _choose(self, path: str) -> None:
+        if self._guard:
+            return
+        self.set_path(path)
+        self.path_selected.emit(path)
+
+    def set_path(self, path: str | None) -> None:
+        self._guard = True
+        try:
+            self.btn_json.setChecked(path == JSON_PATH)
+            self.btn_api.setChecked(path == API_PATH)
+        finally:
+            self._guard = False
+        self.apply_style()
+
+    def apply_texts(self, zh: bool) -> None:
+        self._zh = zh
+        if zh:
+            self.btn_json.setText("JSON → vMix 数据源\n推荐")
+            self.btn_api.setText("进阶：vMix API\n扫描标题字段")
+            self.btn_json.setToolTip(
+                "推荐。写一个 results.json 到桌面「光为OCR输出」，"
+                "vMix 用 Data Sources → JSON 来读。"
+                "点这里打开步骤，并勾选「给 vMix 的 JSON」。"
+            )
+            self.btn_api.setToolTip(
+                "可选。标题已经做好、想直接改标题文字时再用。"
+                "点这里去填主机、扫描标题字段、核对映射。"
+            )
+        else:
+            self.btn_json.setText("JSON → vMix Data Sources\nRecommended")
+            self.btn_api.setText("Advanced: vMix API\nScan title fields")
+            self.btn_json.setToolTip(
+                "Recommended. Write results.json and open the copy-path steps."
+            )
+            self.btn_api.setToolTip(
+                "Optional. Scan a vMix title and map fields with the Web API."
+            )
+        self.apply_style()
+
+    def apply_style(self) -> None:
+        dark = is_dark(self.palette())
+        self.btn_json.setStyleSheet(
+            _outbound_button_qss("json", self.btn_json.isChecked(), dark)
+        )
+        self.btn_api.setStyleSheet(
+            _outbound_button_qss("api", self.btn_api.isChecked(), dark)
+        )
+
+    def sync_from_page(self, page) -> None:
+        name = "" if page is None else page.objectName()
+        if name == "tab_textFiles":
+            self.set_path(JSON_PATH)
+        elif name == "tab_vmix":
+            self.set_path(API_PATH)
+        else:
+            self.set_path(None)
