@@ -165,8 +165,9 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     the vMix title-field scan is 2026.10.27.1; hand-picked vMix fields
     and Chinese team names are 2026.10.27.2; OBS Virtual Camera and the
     channel window title are 2026.10.27.3; the two-button Output chooser
-    (JSON recommended, advanced vMix API) is 2026.10.27.4."""
-    assert GW_RELEASE == "2026.10.27.4"
+    (JSON recommended, advanced vMix API) is 2026.10.27.4; UTF-8 portable
+    zip filenames are 2026.10.27.5."""
+    assert GW_RELEASE == "2026.10.27.5"
     assert is_newer(GW_RELEASE, "2026.10.26.1")
     assert is_newer(GW_RELEASE, "2026.10.26.2")
     assert is_newer(GW_RELEASE, "2026.10.26.3")
@@ -176,7 +177,8 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     assert is_newer(GW_RELEASE, "2026.10.27.1")
     assert is_newer(GW_RELEASE, "2026.10.27.2")
     assert is_newer(GW_RELEASE, "2026.10.27.3")
-    assert not is_newer("2026.10.27.3", GW_RELEASE)
+    assert is_newer(GW_RELEASE, "2026.10.27.4")
+    assert not is_newer("2026.10.27.4", GW_RELEASE)
     assert not is_newer(GW_RELEASE, GW_RELEASE)
 
 

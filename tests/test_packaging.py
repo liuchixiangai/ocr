@@ -411,7 +411,7 @@ def test_bump_version_reminds_to_publish_the_guangwei_channel(
     assert "GW_RELEASE" in out
     assert "bump_gw_release.py" in out
     assert "version.json" in out
-    assert "2026.10.27.4" in out
+    assert "2026.10.27.5" in out
 
 
 def test_bumped_version_file_stays_trivially_parseable(tmp_path):
