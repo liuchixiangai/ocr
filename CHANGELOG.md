@@ -22,7 +22,6 @@ not enabled.
 
 ### Changed
 
-- **输出页两个大按钮：JSON 和 vMix API。** 打开「输出」时，页面最上面并排是蓝色「JSON → vMix 数据源（推荐）」和橙色「进阶：vMix API」。点 JSON 进入说明、勾选「给 vMix 的 JSON」，并聚焦「复制 JSON 路径」（仍写到桌面「光为OCR输出\results.json」，英文列名）。点 API 进入扫描标题字段和映射；长说明默认收起。不再一打开就只剩 API 扫描。
 - **PP-OCR (automatic) for ordinary setups.** A new install still defaults to PP-OCR (automatic). An existing setup whose saved model is Tesseract: General Scoreboard or Tesseract: General Scoreboard Large is moved to PP-OCR (automatic) once, when the PP-OCR weights can be used, without opening the model list. Daktronics, General English, an external model and an existing PP-OCR (accurate) or (fast) choice stay as they are. Choosing Tesseract again afterwards is kept. Portable channel `2026.10.26.3`.
 
 ### Fixed
@@ -35,6 +34,17 @@ not enabled.
 - **预览顺滑。** 摄像头、vMix Video 和本地视频不再大约一秒一跳，大约每秒 15 张。便携通道 `2026.10.26.5`。
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
 - **Game clock reaches the files while a sport is selected.** A jump from `0:00` to a live countdown was held until one time stayed still for 3 seconds, so a clock that changes every reading never went out (`results.json` stayed at `:00.0` while the field list showed the new time in green). A legal pace is accepted after those same few seconds. Removing leading zeros no longer turns `0:00.0` into `:00.0`. A bare Chinese period numeral such as 「二」is published as `2`. Portable channel `2026.10.26.4`.
+
+## [2026.10.27.4] - 2026-10-27
+
+Portable channel `2026.10.27.4`: the Output page leads with two buttons,
+JSON (recommended) and the advanced vMix API. Installed copies on
+`2026.10.27.3` are offered this update when `version.json` is the same
+string.
+
+### Changed
+
+- **输出页两个大按钮：JSON 和 vMix API。** 打开「输出」时，页面最上面并排是蓝色「JSON → vMix 数据源（推荐）」和橙色「进阶：vMix API」。点 JSON 进入说明、勾选「给 vMix 的 JSON」，并聚焦「复制 JSON 路径」（仍写到桌面「光为OCR输出\results.json」，英文列名）。点 API 进入扫描标题字段和映射；长说明默认收起。不再一打开就只剩 API 扫描。便携通道 `2026.10.27.4`：输出页双按钮（JSON 主推 / 进阶 API）。发布时网站 `version.json` 的 `version` 必须是同一个 `2026.10.27.4`。
 
 ## [2026.10.27.3] - 2026-10-27
 
