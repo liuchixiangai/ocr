@@ -154,14 +154,16 @@ def test_channel_version_compare(current, candidate, newer):
 def test_shipped_channel_is_newer_than_the_flip_portable():
     """Flip and 25 fps shipped as 2026.10.26.1; the hardened updater is .2;
     the PP-OCR default migration is .3; the clock hold fix is .4;
-    the smooth preview ship is .5; clock tenths are .6."""
-    assert GW_RELEASE == "2026.10.26.6"
+    the smooth preview ship is .5; clock tenths are .6;
+    the vMix title-field scan is 2026.10.27.1."""
+    assert GW_RELEASE == "2026.10.27.1"
     assert is_newer(GW_RELEASE, "2026.10.26.1")
     assert is_newer(GW_RELEASE, "2026.10.26.2")
     assert is_newer(GW_RELEASE, "2026.10.26.3")
     assert is_newer(GW_RELEASE, "2026.10.26.4")
     assert is_newer(GW_RELEASE, "2026.10.26.5")
-    assert not is_newer("2026.10.26.5", GW_RELEASE)
+    assert is_newer(GW_RELEASE, "2026.10.26.6")
+    assert not is_newer("2026.10.26.6", GW_RELEASE)
     assert not is_newer(GW_RELEASE, GW_RELEASE)
 
 
