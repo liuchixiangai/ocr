@@ -16,6 +16,7 @@ not enabled.
 
 ### Added
 
+- **进阶：扫描 vMix 标题字段（API）。** vMix 出站页增加「进阶：扫描标题字段（API）」。它读取 Web Controller 的状态 XML（`GET /api/`），把当前标题里的文字字段放进映射表右列的下拉框（仍可手打）。GT 的字段名如果没有 `.Text` 会补上；XAML 和旧 Title 保持 XML 里的名字。只自动填写空格子和仍显示为光为字段原名的格子，已经改过的映射不动。日常出站仍是「给 vMix 的 JSON」。
 - **When blank: clear the value.** A new box setting, under Filtering: when the box has shown nothing for 2 seconds, the outputs can get an empty value instead of keeping its last one, which clears the text in vMix, OBS, the overlays, the files and every other output. **Clear the value, also at zero** also clears a box that reads zero (`0`, `0:00`) for 2 seconds. For a handball or hockey penalty timer that goes out at the end of the penalty; a shorter blank (a flicker, a hand in front of the board) keeps the value ([#140](https://github.com/royshil/scoresight/discussions/140)). It replaces **Skip empty values**, which had no effect since 0.2.0.
 - **Ask before closing.** Closing ScoreSight while a source is open now asks first, in both layouts, since it stops the reading and the outputs. **Don't ask again** in the question, or **File > Ask before closing**, turns it off. Stopping a headless ScoreSight (Ctrl+C, SIGTERM) and **Update now** don't ask ([#140](https://github.com/royshil/scoresight/discussions/140)).
 
