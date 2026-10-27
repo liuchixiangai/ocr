@@ -221,7 +221,12 @@ except Exception:  # pragma: no cover
     show_gw_update_dialog = None  # type: ignore
 from log_view import LogViewerDialog
 import file_output
-from vmix_outbound_guide import VmixOutboundGuide
+from vmix_outbound_guide import (
+    VmixOutboundGuide,
+    OutboundPathChooser,
+    focus_api_outbound,
+    focus_json_outbound,
+)
 from version import __version__
 from product_brand import (
     APP_DISPLAY_NAME,
@@ -2129,6 +2134,46 @@ class MainWindow(QMainWindow):
         if current.isValid():
             self.ui.stackedWidget_outputs.setCurrentIndex(current.row())
         self.updateDestinationDetails()
+        self._syncOutboundChooser()
+
+    def _installOutboundChooser(self) -> None:
+        """Two big buttons above every output page: JSON, or the vMix API."""
+        chooser = getattr(self, "outboundChooser", None)
+        if chooser is None:
+            chooser = OutboundPathChooser(self.ui.widget_outputDetails)
+            chooser.path_selected.connect(self._onOutboundPathSelected)
+            self.ui.verticalLayout_outputDetails.insertWidget(0, chooser)
+            self.outboundChooser = chooser
+        chooser.apply_texts(self._chinese_ui())
+        self._syncOutboundChooser()
+
+    def _syncOutboundChooser(self) -> None:
+        chooser = getattr(self, "outboundChooser", None)
+        if chooser is None:
+            return
+        chooser.sync_from_page(self.ui.stackedWidget_outputs.currentWidget())
+
+    def _onOutboundPathSelected(self, path: str) -> None:
+        if getattr(self, "_outbound_switching", False):
+            return
+        self._outbound_switching = True
+        try:
+            if path == "json":
+                focus_json_outbound(self.ui, self.vmixOutboundGuide)
+                self._showDestinationPage(output_status.FILES)
+            else:
+                focus_api_outbound(self.ui, self.vmixOutboundGuide)
+                self._showDestinationPage(output_status.VMIX)
+        finally:
+            self._outbound_switching = False
+
+    def _showDestinationPage(self, key: str) -> None:
+        view = self.ui.listView_destinations
+        index = self.destinationsModel.index(self.destinationsModel.rowOf(key), 0)
+        if view.currentIndex().row() != index.row():
+            view.setCurrentIndex(index)
+        else:
+            self.ui.stackedWidget_outputs.setCurrentIndex(index.row())
 
     def showDestination(self, key: str):
         """Select a destination (e.g. clicked in the status bar): the Inspector
@@ -2760,10 +2805,10 @@ class MainWindow(QMainWindow):
             view.hide()
             splitter = self.ui.splitter_outputs
             splitter.setChildrenCollapsible(True)
-            # Collapse the list pane; details (text-files / blue guide) fill the tab
+            # Collapse the list pane. The two path buttons above the pages
+            # are how you switch between JSON and the vMix API.
             splitter.setSizes([0, max(400, splitter.size().height())])
-            # Always show the Text-files page (JSON / blue vMix guide)
-            self.ui.stackedWidget_outputs.setCurrentIndex(0)
+            self._installOutboundChooser()
             # Hide 「输出文件夹」 line (path + 打开/清除)
             if hasattr(self.ui, "label_7"):
                 self.ui.label_7.hide()
@@ -4665,10 +4710,14 @@ class MainWindow(QMainWindow):
                     "先点工具栏「四角」拉正画面，再选字段并在画面上拖框。"
                 )
                 self.ui.label_firstRunOutputs.setText(
-                    "③ 勾选 JSON，一键复制路径给 vMix"
+                    "③ 输出页点「JSON → vMix 数据源」"
                 )
                 self.ui.label_firstRunOutputsHint.setText(
-                    "出站 → 文本文件：勾选「给 vMix 的 JSON」，点「一键复制 JSON 路径」，到 vMix Data Sources → + → JSON 粘贴；Update 建议 100 毫秒（填 1000 会一秒一跳）"
+                    "输出页顶部两个大按钮：先点蓝色「JSON → vMix 数据源」，"
+                    "勾选「给 vMix 的 JSON」，点「复制 JSON 路径」，"
+                    "到 vMix Data Sources → + → JSON 粘贴。"
+                    "Update 填 100 毫秒（填 1000 会一秒一跳）。"
+                    "标题已经做好再点橙色「进阶：vMix API」。"
                 )
                 self.ui.pushButton_firstRunCamera.setText("采集卡 / 摄像头")
         except Exception:

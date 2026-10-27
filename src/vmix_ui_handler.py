@@ -332,6 +332,7 @@ class VMixUIHanlder:
             self.btn_copy_vmix_api = self.ui.btn_copy_vmix_api
             self._ensure_scan_lead()
             self._connect_guide_buttons(replace=True)
+            self._ensure_api_steps_toggle()
             self._place_vmix_guide_widgets()
             self._vmix_guide_installed = True
             self.apply_vmix_guide_texts(self._zh)
@@ -362,6 +363,7 @@ class VMixUIHanlder:
         self.ui.btn_scan_vmix_fields = self.btn_scan_vmix_fields
         self.ui.label_vmix_scan_status = self.label_vmix_scan_status
         self.ui.btn_copy_vmix_api = self.btn_copy_vmix_api
+        self._ensure_api_steps_toggle()
         self._place_vmix_guide_widgets()
         self._vmix_guide_installed = True
         self.apply_vmix_guide_texts(True)
@@ -378,11 +380,50 @@ class VMixUIHanlder:
             self.ui.label_vmix_scan_lead = lead
         self.label_vmix_scan_lead = lead
 
-    def _place_vmix_guide_widgets(self):
-        """Scan button first, then the result line, then the long steps.
+    def _ensure_api_steps_toggle(self):
+        """The long API instructions start collapsed so they don't fill the page."""
+        button = getattr(self, "btn_vmix_api_steps", None)
+        if button is None:
+            button = getattr(self.ui, "btn_vmix_api_steps", None)
+        if button is None:
+            parent = (
+                getattr(self.ui, "tab_vmix", None) or self.label_vmix_guide.parent()
+            )
+            button = QPushButton(parent)
+            button.setObjectName("pushButton_vmixApiSteps")
+            button.setFlat(True)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setStyleSheet("text-align: left; color: #94a3b8; font-weight: 600;")
+            button.clicked.connect(self._toggle_api_steps)
+            self.ui.btn_vmix_api_steps = button
+        self.btn_vmix_api_steps = button
+        if not getattr(self, "_api_steps_ready", False):
+            self._api_steps_open = False
+            self.label_vmix_guide.hide()
+            self._api_steps_ready = True
 
-        The button used to sit under a block of instructions, so it read as
-        one more sentence. It is the action on this page.
+    def _toggle_api_steps(self) -> None:
+        self._api_steps_open = not getattr(self, "_api_steps_open", False)
+        self.label_vmix_guide.setVisible(self._api_steps_open)
+        self._update_api_steps_button()
+
+    def _update_api_steps_button(self) -> None:
+        button = getattr(self, "btn_vmix_api_steps", None)
+        if button is None:
+            return
+        open_ = bool(getattr(self, "_api_steps_open", False))
+        if self._zh:
+            button.setText(
+                "▾ 收起 API 步骤" if open_ else "▸ API 步骤（可选，一般不用看）"
+            )
+        else:
+            button.setText("▾ Hide API steps" if open_ else "▸ API steps (optional)")
+
+    def _place_vmix_guide_widgets(self):
+        """Short lead and the scan button, then optional steps.
+
+        The long how-to stays collapsed. The Output tab's two path buttons
+        are how you get here and how you get back to JSON.
         """
         layout = getattr(self.ui, "verticalLayout_6", None)
         if layout is None:
@@ -391,12 +432,17 @@ class VMixUIHanlder:
             self.label_vmix_scan_lead,
             self.btn_scan_vmix_fields,
             self.label_vmix_scan_status,
+            self.btn_vmix_api_steps,
             self.label_vmix_guide,
             self.btn_copy_vmix_api,
         ]
         for widget in widgets:
+            if widget is None:
+                continue
             layout.removeWidget(widget)
         for widget in widgets:
+            if widget is None:
+                continue
             layout.addWidget(widget)
 
     def _style_scan_button(self):
@@ -404,8 +450,10 @@ class VMixUIHanlder:
         if button is None:
             return
         button.setObjectName("pushButton_scanVmixFields")
+        # Slate, not the JSON blue: the blue button on the Output tab is
+        # 「JSON → vMix 数据源」. This scan action stays inside the API page.
         dark = is_dark(button.palette())
-        bg, hover = ("#2563eb", "#1d4ed8") if dark else ("#1d4ed8", "#1e3a8a")
+        bg, hover = ("#475569", "#334155") if dark else ("#334155", "#1e293b")
         button.setStyleSheet(
             "QPushButton#pushButton_scanVmixFields {"
             f" background-color: {bg}; color: #ffffff;"
@@ -612,9 +660,8 @@ class VMixUIHanlder:
             return
         if zh:
             self.label_vmix_scan_lead.setText(
-                "日常出站用左边「文本文件」里的「给 vMix 的 JSON」。"
-                "这一页是进阶：点下面这个按钮，把标题里的文字名读出来，"
-                "再在表格里一行一行选。"
+                "大多数人点上面的「JSON → vMix 数据源」，勾选「给 vMix 的 JSON」。"
+                "这一页是进阶：点下面扫描标题文字，再在表里逐行改。"
             )
             self.ui.pushButton_startvmix.setToolTip(
                 "进阶。按映射表用 Web API 的 SetText 更新标题文字。"
@@ -634,7 +681,7 @@ class VMixUIHanlder:
             self.btn_copy_vmix_api.setText("一键复制 API 示例 / 当前映射")
             self.label_vmix_guide.setText(
                 "<b>进阶：vMix API（一般不用）</b><br>"
-                "大多数人用左边「文本文件」里的"
+                "大多数人点上面蓝色的「JSON → vMix 数据源」，勾选"
                 "<b>「给 vMix 的 JSON（推荐）」</b>就够："
                 "vMix 用 Data Sources 读那一个文件。这一页是可选的，"
                 "给已经做好标题、想让软件直接改标题文字的人。<br>"
@@ -650,9 +697,9 @@ class VMixUIHanlder:
             )
         else:
             self.label_vmix_scan_lead.setText(
-                "Day to day, use JSON for vMix on the Text files page. "
-                "This page is the advanced path: scan the title, then pick "
-                "each field in the table."
+                "Most people use JSON for vMix (the button above) and tick "
+                "JSON for vMix. This page is advanced: scan the title, then "
+                "pick each field in the table."
             )
             self.ui.pushButton_startvmix.setToolTip(
                 "Advanced. Push mapped fields with the Web API SetText. "
@@ -686,6 +733,7 @@ class VMixUIHanlder:
                 "Change any guess from that row's dropdown."
             )
         self._style_scan_button()
+        self._update_api_steps_button()
 
     def _set_scan_status(self, text: str, kind: str) -> None:
         label = getattr(self, "label_vmix_scan_status", None)
