@@ -163,8 +163,9 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     the PP-OCR default migration is .3; the clock hold fix is .4;
     the smooth preview ship is .5; clock tenths are .6;
     the vMix title-field scan is 2026.10.27.1; hand-picked vMix fields
-    and Chinese team names are 2026.10.27.2."""
-    assert GW_RELEASE == "2026.10.27.2"
+    and Chinese team names are 2026.10.27.2; OBS Virtual Camera and the
+    channel window title are 2026.10.27.3."""
+    assert GW_RELEASE == "2026.10.27.3"
     assert is_newer(GW_RELEASE, "2026.10.26.1")
     assert is_newer(GW_RELEASE, "2026.10.26.2")
     assert is_newer(GW_RELEASE, "2026.10.26.3")
@@ -172,7 +173,8 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     assert is_newer(GW_RELEASE, "2026.10.26.5")
     assert is_newer(GW_RELEASE, "2026.10.26.6")
     assert is_newer(GW_RELEASE, "2026.10.27.1")
-    assert not is_newer("2026.10.27.1", GW_RELEASE)
+    assert is_newer(GW_RELEASE, "2026.10.27.2")
+    assert not is_newer("2026.10.27.2", GW_RELEASE)
     assert not is_newer(GW_RELEASE, GW_RELEASE)
 
 
