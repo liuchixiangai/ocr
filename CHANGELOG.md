@@ -26,7 +26,6 @@ not enabled.
 
 ### Fixed
 
-- **便携 zip 的中文文件名。** 打包改为 `scripts/portable_zip.py`。Windows PowerShell 5.1 的 `Compress-Archive` 把 `使用说明.txt`、`启动光为OCR.bat` 按 UTF-8 写进 zip，却不设置 UTF-8 文件名标志，中文资源管理器会按 GBK 解码，显示成 `浣跨敤璇存槑.txt` 这类乱码。现在 zip 会带上该标志和 Unicode 路径字段；英文的 `GuangWeiOCR.exe`、`scoresight.exe` 不变。这一改动还没有发布到下载站。
 - **中文队名可以识别。** 新加的字段以前按数字处理，识别时又只允许英文和数字，框住记分牌上的队名会变成空白或乱数字。点「框选」会先问要比什么：主队得分、客队得分、比赛时间、24秒、节次、犯规、主队队名、客队队名（中文文字）、自定义文本、自定义数字。队名和自定义文本用 PP-OCR 的完整字库读简体中文；比分、犯规、时间仍只认数字。写出的 JSON 列名是 home_name、away_name。便携通道 `2026.10.27.2`：框选先选字段，中文队名走完整字库；JSON 键 home_name / away_name。
 - **vMix 标题字段可以手选了。** 「进阶：扫描标题字段（API）」改成这一页最显眼的按钮（仍标明是进阶，日常继续用「给 vMix 的 JSON」）。扫描之后，映射表每一行右边都是下拉，列出该标题的文字字段；自动填上的可以改，没猜到的可以自己选，也可以手打。之前要点格子才弹出下拉，弹出后又马上关掉，所以经常选不中。便携通道 `2026.10.27.2`：vMix 扫描按钮更显眼，映射下拉可以逐行手选；主推仍是 JSON 数据源。
 - **比赛时间和 24 秒最后几秒的小数。** 牌面从整数切到一位小数（`0:04.9`、`4.9`，点被认成逗号或冒号也算）时，读数不再被格式滤掉，也不会砍成整数。`results.json` 里 `game_clock` / `shot_clock` 按小数连续写出。比分、犯规仍是整数。时钟和 24 秒继续不加 LED 防抖。便携通道 `2026.10.26.6`。
@@ -36,6 +35,17 @@ not enabled.
 - **English clock boxes keep the colon.** A box named Time (Home Score, Away Score, Period, and the other ScoreSight English field names too) was treated as a custom number. The digit-only whitelist dropped the colon, so `12:00` was published as `1200` and the clock format never matched. Those names again use the same type and format as 比赛时间, 主队得分, and the rest.
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
 - **Game clock reaches the files while a sport is selected.** A jump from `0:00` to a live countdown was held until one time stayed still for 3 seconds, so a clock that changes every reading never went out (`results.json` stayed at `:00.0` while the field list showed the new time in green). A legal pace is accepted after those same few seconds. Removing leading zeros no longer turns `0:00.0` into `:00.0`. A bare Chinese period numeral such as 「二」is published as `2`. Portable channel `2026.10.26.4`.
+
+## [2026.10.27.5] - 2026-10-27
+
+Portable channel `2026.10.27.5`: the portable zip stores Chinese filenames
+with the UTF-8 flag, so Explorer no longer shows them as GBK mojibake.
+Installed copies on `2026.10.27.4` are offered this update when
+`version.json` is the same string.
+
+### Fixed
+
+- **便携 zip 的中文文件名。** 打包改为 `scripts/portable_zip.py`。Windows PowerShell 5.1 的 `Compress-Archive` 把 `使用说明.txt`、`启动光为OCR.bat` 按 UTF-8 写进 zip，却不设置 UTF-8 文件名标志，中文资源管理器会按 GBK 解码，显示成 `浣跨敤璇存槑.txt` 这类乱码。现在 zip 会带上该标志和 Unicode 路径字段；英文的 `GuangWeiOCR.exe`、`scoresight.exe` 不变。便携通道 `2026.10.27.5`：便携 zip 中文文件名 UTF-8 修复。发布时网站 `version.json` 的 `version` 必须是同一个 `2026.10.27.5`。
 
 ## [2026.10.27.4] - 2026-10-27
 
