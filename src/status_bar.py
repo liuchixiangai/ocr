@@ -29,6 +29,7 @@ import ocr_models
 import ppocr_engine
 import theme
 from product_brand import (
+    GW_RELEASE,
     QQ_GROUP_NUMBER,
     SIMPLIFY_OUTPUT_UI,
 )
@@ -573,6 +574,11 @@ class MainStatusBar(QObject):
         self.button_feedback.clicked.connect(self.feedback_clicked)
         self._feedback_look = None
         # GuangWei: muted QQ-group help instead of GitHub Feedback
+        self.label_channel = QLabel(statusbar)
+        self.label_channel.setObjectName("label_statusChannel")
+        self.label_channel.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         self.label_qq_help = QLabel(statusbar)
         self.label_qq_help.setObjectName("label_statusQqHelp")
         self.label_qq_help.setTextFormat(Qt.TextFormat.RichText)
@@ -612,6 +618,7 @@ class MainStatusBar(QObject):
         statusbar.addPermanentWidget(self.widget_outputs)
         statusbar.addPermanentWidget(self.label_http)
         statusbar.addPermanentWidget(self.button_copy)
+        statusbar.addPermanentWidget(self.label_channel)
         statusbar.addPermanentWidget(self.label_qq_help)
         statusbar.addPermanentWidget(self.button_feedback)
         if SIMPLIFY_OUTPUT_UI:
@@ -649,6 +656,15 @@ class MainStatusBar(QObject):
                 "ScoreSight's Discussions on GitHub in your web browser",
             )
         )
+        self.label_channel.setText(GW_RELEASE)
+        self.label_channel.setToolTip(
+            QCoreApplication.translate(
+                "StatusBar",
+                "Channel release {release}. Auto-update compares this same number.",
+            ).format(release=GW_RELEASE)
+        )
+        muted = theme.muted_color(self.statusbar.palette()).name()
+        self.label_channel.setStyleSheet(f"QLabel {{ color: {muted}; }}")
         if SIMPLIFY_OUTPUT_UI:
             link = '<a href="qq-group">复制群号</a>'
             self.label_qq_help.setText(f"不会用？加 QQ 群 {QQ_GROUP_NUMBER}（{link}）")

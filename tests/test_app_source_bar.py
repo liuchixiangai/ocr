@@ -82,6 +82,75 @@ def test_a_source_error_says_what_failed_and_what_to_do(kind, value, headline):
     assert ":p@" not in what
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "OBS Virtual Camera",
+        "  obs   virtual   camera ",
+        "OBS_Virtual_Camera",
+        "OBS-Camera",
+        "obs camera",
+        "OBS Camera 2",
+        "Streamlabs Desktop Virtual Webcam",
+        "streamlabs virtual cam",
+    ],
+)
+def test_obs_virtual_camera_names_match(name):
+    from camera_info import is_obs_virtual_camera
+
+    assert is_obs_virtual_camera(name)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "vMix Video",
+        "vMix Virtual Camera",
+        "vMix",
+        "HD Pro Webcam",
+        "Blackmagic WDM Capture",
+        "Magewell USB Capture",
+        "禾鸟四路",
+        "OBS",
+        "Virtual Camera",
+        None,
+        "",
+    ],
+)
+def test_vmix_and_capture_cards_are_not_the_obs_virtual_camera(name):
+    from camera_info import is_obs_virtual_camera, opencv_forces_obs_nv12
+
+    assert not is_obs_virtual_camera(name)
+    assert not opencv_forces_obs_nv12(name)
+
+
+def test_opencv_forces_nv12_only_for_the_two_exact_names():
+    from camera_info import opencv_forces_obs_nv12
+
+    assert opencv_forces_obs_nv12("OBS Virtual Camera")
+    assert opencv_forces_obs_nv12("  OBS   Virtual   Camera ")
+    assert opencv_forces_obs_nv12("Streamlabs Desktop Virtual Webcam")
+    # Hyphens are a different friendly name. OpenCV does not rewrite its FOURCC,
+    # so the legacy plugin still gets format retries.
+    assert not opencv_forces_obs_nv12("OBS-Camera")
+    assert not opencv_forces_obs_nv12("OBS_Virtual_Camera")
+    assert not opencv_forces_obs_nv12("OBS-Virtual-Camera")
+
+
+def test_obs_virtual_camera_error_says_to_start_it_and_refresh():
+    what, hint = source_bar.source_error_text(
+        source(CameraInfo.CameraType.OPENCV, "OBS Virtual Camera")
+    )
+    assert what.startswith("Can't show the OBS Virtual Camera")
+    assert "Start Virtual Camera" in hint
+    assert "refresh" in hint
+    # vMix Video keeps the generic camera message
+    vmix, _hint = source_bar.source_error_text(
+        source(CameraInfo.CameraType.OPENCV, "vMix Video")
+    )
+    assert vmix.startswith("Can't open vMix Video")
+
+
 def test_the_playback_speeds_cycle():
     speeds = [1]
     for _ in range(6):
@@ -245,6 +314,7 @@ def test_capture_card_guide_names_the_common_cards():
     assert "Desktop Video" in guide and "DirectShow" in guide
     assert "WDM Capture" in guide
     assert "禾鸟" in guide and "1 个设备" in guide
+    assert "启动虚拟摄像机" in guide and "vMix Video" in guide
     assert source_bar.capture_card_guide(chinese=False) == ""
     html = source_bar.capture_card_guide_html()
     assert "<li>" in html and "禾鸟" in html

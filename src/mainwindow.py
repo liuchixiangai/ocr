@@ -79,7 +79,7 @@ from box_settings_ui_handler import (
     BoxSettingsUIHandler,
     changed_settings,
 )
-from camera_info import CameraInfo
+from camera_info import CameraInfo, is_obs_virtual_camera
 from camera_thread import crop_margins
 from destinations_view import (
     KEY_ROLE,
@@ -225,10 +225,9 @@ from vmix_outbound_guide import VmixOutboundGuide
 from version import __version__
 from product_brand import (
     APP_DISPLAY_NAME,
-    LICENSE_NAME,
     SIMPLIFY_OUTPUT_UI,
-    UPSTREAM_NAME,
-    UPSTREAM_URL,
+    about_version_text,
+    channel_window_title,
     ensure_default_output_folder,
 )
 from video_settings import VideoSettingsDialog
@@ -1508,14 +1507,14 @@ class MainWindow(QMainWindow):
         hint.setVisible(row.width() >= needed)
 
     def updateWindowTitle(self):
-        title = f"{APP_DISPLAY_NAME} - v{__version__}"
-        profile = get_profile()
-        if profile:
-            title += f" [{profile}]"
-        if self.outputsPausedAt is not None:
-            # visible in the taskbar too
-            title = f"⏸ {title}"
-        self.setWindowTitle(title)
+        # Channel release (GW_RELEASE), the same string auto-update compares.
+        # Upstream ScoreSight's version stays in About.
+        self.setWindowTitle(
+            channel_window_title(
+                profile=get_profile(),
+                paused=self.outputsPausedAt is not None,
+            )
+        )
 
     def updateBrowserEndpoints(self):
         """Show the HTTP server's real port on its page, and its address for
@@ -2656,21 +2655,7 @@ class MainWindow(QMainWindow):
                 app=APP_DISPLAY_NAME
             )
         )
-        about_dialog.ui.label_version.setText(
-            (
-                "{app}  v{version}"
-                + chr(10)
-                + "Based on {upstream} ({license})"
-                + chr(10)
-                + "{url}"
-            ).format(
-                app=APP_DISPLAY_NAME,
-                version=__version__,
-                upstream=UPSTREAM_NAME,
-                license=LICENSE_NAME,
-                url=UPSTREAM_URL,
-            )
-        )
+        about_dialog.ui.label_version.setText(about_version_text(__version__))
         return about_dialog
 
     def openAboutDialog(self):
@@ -4141,6 +4126,8 @@ class MainWindow(QMainWindow):
 
         Closing stops its capture thread, waiting at most STOP_TIMEOUT_MS; a
         thread still blocked on its source then finishes in the background.
+        An OBS graph also stays locked until that release, so the next open
+        waits instead of building a second graph on the same virtual camera.
         Deleting the viewer is safe even then: the thread isn't a Qt child of
         the viewer (camera_thread keeps it alive until it finishes), and the
         viewer has already disconnected from it and from the settings."""
@@ -4398,6 +4385,9 @@ class MainWindow(QMainWindow):
         if self.image_viewer.timerThread:
             self.image_viewer.timerThread.ocr_result_signal.connect(self.ocrResult)
             self.image_viewer.timerThread.update_error.connect(self.updateError)
+            self.image_viewer.timerThread.blank_preview.connect(
+                self.updateObsBlankPreview
+            )
 
     def cameraConnectedEnableUI(self):
         if self.image_viewer is None:
@@ -4418,6 +4408,42 @@ class MainWindow(QMainWindow):
         self.updateZoomReadout()
         self.updateCropWarning()
         self.refreshLiveStatus()
+
+    def updateObsBlankPreview(self, blank: bool):
+        """The open OBS virtual camera has gone black, or a picture came back.
+
+        The banner is the same one as a failed open (start the virtual camera,
+        then refresh). Tools stay usable so refresh still works. A real source
+        error is not cleared by a later frame.
+
+        Refresh disconnects the old capture, but a blank signal already queued
+        on the GUI thread is still delivered. sender() is that old thread; it
+        must not mark the source that replaced it. A direct call has no sender
+        and still applies.
+        """
+        viewer = self.image_viewer
+        thread = getattr(viewer, "timerThread", None) if viewer is not None else None
+        sender = self.sender()
+        if sender is not None and sender is not thread:
+            return
+        info = viewer.getCameraInfo() if viewer is not None else None
+        if info is None or not is_obs_virtual_camera(
+            getattr(info, "description", None)
+        ):
+            return
+        if blank:
+            if self.sourceError:
+                return
+            self.sourceError = "obs-blank"
+            self.updateSourceBanner()
+            if hasattr(self, "statusBarWidgets"):
+                self.refreshLiveStatus()
+            return
+        if self.sourceError == "obs-blank":
+            self.sourceError = None
+            self.updateSourceBanner()
+            if hasattr(self, "statusBarWidgets"):
+                self.refreshLiveStatus()
 
     def updateError(self, error):
         """The source failed: the source error banner says so (with Retry),
