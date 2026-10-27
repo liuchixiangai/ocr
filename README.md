@@ -77,7 +77,7 @@ python scripts/fetch_models.py
 python src\main.py
 ```
 
-`requirements-build.txt` 里的打包工具是 **PyInstaller 6.22.3**。规格文件是仓库根目录的 `scoresight.spec`，产物是 `dist\scoresight\scoresight.exe`（onedir）。下载站上的文件名是 `GuangWeiOCR.exe` / `GuangWeiOCR-Portable.zip`，那个改名和启动 bat 在本地打包步骤里，**还没有**写进这个 CI。自动更新在找不到 `GuangWeiOCR.exe` 时会退回 `scoresight.exe`（`src/gw_auto_update.py`）。
+`requirements-build.txt` 里的打包工具是 **PyInstaller 6.22.3**。规格文件是仓库根目录的 `scoresight.spec`，产物是 `dist\scoresight\scoresight.exe`（onedir）。下载站上的文件名是 `GuangWeiOCR.exe` / `GuangWeiOCR-Portable.zip`。打这个 zip 用 `python scripts/portable_zip.py dist\scoresight -o dist\GuangWeiOCR-Portable.zip`：它会复制出 `GuangWeiOCR.exe`（同时保留 `scoresight.exe`），放上 `使用说明.txt` 和 `启动光为OCR.bat`，并用 UTF-8 文件名标志打包。不要用 `Compress-Archive`，否则中文文件名在资源管理器里会变成乱码。自动更新在找不到 `GuangWeiOCR.exe` 时会退回 `scoresight.exe`（`src/gw_auto_update.py`）。说明见 [docs/gw-portable-release.md](docs/gw-portable-release.md)。
 
 更细的上游构建说明仍在 [docs/development/building.md](docs/development/building.md)。把里面的 clone 地址换成 `https://github.com/liuchixiangai/ocr.git`。
 

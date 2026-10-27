@@ -13,9 +13,36 @@ OBS 虚拟摄像机要先在 OBS 里点「启动虚拟摄像机」，确认 OBS 
 
 `scripts/bump_version.py` 改的是上游 ScoreSight 的版本号。它结束时会提醒下面这两步，但**不会**改 `GW_RELEASE`。
 
+## 打 zip（中文文件名）
+
+下载站上的压缩包用下面这条命令生成，不要用 PowerShell 的 `Compress-Archive`：
+
+```powershell
+python scripts/portable_zip.py dist\scoresight -o dist\GuangWeiOCR-Portable.zip
+```
+
+`Compress-Archive`（Windows PowerShell 5.1，底层是 .NET Framework 的 `ZipArchive`）会把文件名按 UTF-8 写进 zip，但**不**设置通用标志位第 11 位（UTF-8 文件名）。中文版资源管理器看到这个标志没打开，就按系统 ANSI（GBK）解码。磁盘上本来正确的 `使用说明.txt` 解压后会变成 `浣跨敤璇存槑.txt`，`启动光为OCR.bat` 同样变成乱码。英文名 `GuangWeiOCR.exe`、`scoresight.exe` 不受影响。
+
+这条命令会：
+
+- 保留 `scoresight.exe`，并复制出 `GuangWeiOCR.exe`（两个都留）
+- 放上仓库里的 `packaging/portable/使用说明.txt` 和 `packaging/portable/启动光为OCR.bat`（按 Unicode 文件名复制，不走系统代码页）
+- 用 Python `zipfile` 打包：非 ASCII 文件名带 UTF-8 标志，并写入 Info-ZIP Unicode 路径扩展字段（`0x7075`）
+- 写完再读 zip。标志没有、名字不对、或里面仍是乱码文件名，命令直接失败
+
+暂存目录里如果已经有解压乱码（例如 `浣跨敤璇存槑.txt`），脚本会删掉这些名字，再写入正确的中文文件名。PyInstaller 目录本身不会被改掉。
+
+检查一个已经打好的 zip：
+
+```powershell
+python scripts/portable_zip.py --check dist\GuangWeiOCR-Portable.zip
+```
+
+在中文 Windows 资源管理器里解压，根上应直接看到 `使用说明.txt` 和 `启动光为OCR.bat`。
+
 ## 每次发便携包
 
-1. 确认新包已经打好（`GuangWeiOCR.exe`，zip 名 `GuangWeiOCR-Portable.zip`）。
+1. 用上一节的命令打好包（`GuangWeiOCR.exe`，zip 名 `GuangWeiOCR-Portable.zip`）。不要用 `Compress-Archive`。
 2. 把通道版本抬到比当前 `GW_RELEASE` 更新的字符串（日期加点修订即可。画面翻转和默认 25 帧是 `2026.10.26.1`；加固后的自动更新是 `2026.10.26.2`；已保存的 Tesseract General Scoreboard / Large 一次性迁到 PP-OCR（自动）是 `2026.10.26.3`；比赛时间在选定运动后能写入结果、节次「二」和时钟前导零是 `2026.10.26.4`。下一次包含新代码的 zip 必须再用一个更新的字符串，相同版本会被脚本拒绝）：
 
    ```bash

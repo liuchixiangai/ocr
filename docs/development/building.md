@@ -181,7 +181,7 @@ It reads the version from `src/version.py` and writes `dist\scoresight-<version>
 - closes a running ScoreSight and removes the previous version's `_internal` folder before installing,
 - keeps `AppId=ScoreSight`, the ID that 0.1.x installers used implicitly, so it upgrades existing installations in place. Never change it.
 
-CI also zips `dist\scoresight` as `scoresight-<version>-windows-x64-portable.zip`.
+CI also zips `dist\scoresight` as `scoresight-<version>-windows-x64-portable.zip`, via `python scripts/portable_zip.py --layout scoresight`. That writer sets the ZIP UTF-8 filename flag. The download-site package is a different layout (`GuangWeiOCR.exe`, `使用说明.txt`, `启动光为OCR.bat`); build it with `python scripts/portable_zip.py` and do not use `Compress-Archive`. See [发布光为 OCR 便携包](../gw-portable-release.md).
 
 `/DSignTool=<name>` signs Setup and the uninstaller with a Sign Tool defined on the same command line by `/S<name>=<command>`. In the command, `$f` is the quoted file and `$q` a quote. CI's release builds sign that way, and they also sign `scoresight.exe` before packaging it, with `scripts/ci/sign_windows.ps1` (Azure Artifact Signing). See [Signing](releasing.md#signing).
 
