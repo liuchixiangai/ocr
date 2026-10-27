@@ -233,6 +233,7 @@ from product_brand import (
     SIMPLIFY_OUTPUT_UI,
     about_version_text,
     channel_window_title,
+    configured_output_folder,
     ensure_default_output_folder,
 )
 from video_settings import VideoSettingsDialog
@@ -2856,9 +2857,18 @@ class MainWindow(QMainWindow):
             logger.info("光为 OCR: clock/shot-clock LED hold cleared (0 / 0ms)")
 
     def ensureGuangweiOutputFolder(self) -> str | None:
-        """Force out_folder to Desktop\\光为OCR输出 and persist it."""
+        """Force out_folder to Desktop\\光为OCR输出 and persist it.
+
+        SCORESIGHT_OUTPUT_DIR (the end-to-end harness) wins, so a headless run
+        can keep the folder it configured.
+        """
         if not SIMPLIFY_OUTPUT_UI:
             return self.out_folder
+        override = configured_output_folder()
+        if override:
+            if self.out_folder != override:
+                self.setOutputFolder(override)
+            return override
         try:
             folder = ensure_default_output_folder()
         except Exception:
