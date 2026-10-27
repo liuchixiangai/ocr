@@ -112,6 +112,7 @@ SELF_TEST_MODULES = (
     "video_settings",
     "vmix_outbound_guide",
     "vmix_output",
+    "vmix_title_scan",
     "vmix_ui_handler",
     "website_reserved",
 )

@@ -393,9 +393,21 @@ def test_close_unsubscribes_from_settings(make_vmix):
 
 @pytest.fixture
 def vmix_ui(qapp):
-    from PySide6.QtWidgets import QLineEdit, QPushButton, QTableView
+    from PySide6.QtWidgets import (
+        QLineEdit,
+        QPushButton,
+        QTableView,
+        QVBoxLayout,
+        QWidget,
+    )
 
+    # The guide and the scan button are added to this layout at setup. Keeping
+    # the parent on the namespace stops it being collected mid-test.
+    parent = QWidget()
+    layout = QVBoxLayout(parent)
     ui = SimpleNamespace(
+        tab_vmix=parent,
+        verticalLayout_6=layout,
         lineEdit_vmixHost=QLineEdit(),
         lineEdit_vmixPort=QLineEdit(),
         inputLineEdit_vmix=QLineEdit(),

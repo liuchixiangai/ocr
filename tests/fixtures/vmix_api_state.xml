@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample of GET /api/ (vMix Web Controller state), not a .vmix preset.
+     GT text names usually already include .Text; ShotClock is missing it on
+     purpose. XAML and legacy Title names are the SelectedName as documented,
+     without a suffix. The image child must not become a SetText field. -->
+<vmix>
+  <version>27.0.0.60</version>
+  <edition>4K</edition>
+  <inputs>
+    <input key="cam-key" number="1" type="Capture" title="Camera" shortTitle="Camera" state="Running"/>
+    <input key="gt-key-1111" number="2" type="GT" title="Scoreboard.gtzip" shortTitle="Scoreboard" state="Paused">
+      <text index="0" name="Home Score.Text">0</text>
+      <text index="1" name="Away Score.Text">0</text>
+      <text index="2" name="CLOCK.Text">0:00</text>
+      <text index="3" name="Period.Text">1</text>
+      <text index="4" name="ShotClock">24</text>
+      <text index="5" name="Home Fouls.Text">0</text>
+      <text index="6" name="Away Fouls.Text">0</text>
+      <text index="7" name="Home Title.Text">HOME</text>
+      <text index="8" name="Home Score.Text">duplicate ignored</text>
+      <image index="0" name="Home Logo.Source"></image>
+      <text index="9" name="  "></text>
+    </input>
+    <input key="xaml-key" number="3" type="Xaml" title="Custom.xaml" shortTitle="Custom Score" state="Paused">
+      <text index="0" name="Headline">Hi</text>
+      <text index="1" name="HomeScore">1</text>
+    </input>
+    <input key="title-key" number="4" type="Title" title="Old Title" shortTitle="Old Title">
+      <text index="0" name="Message">Hello</text>
+    </input>
+    <input key="empty-gt" number="5" type="GT" title="Empty.gtzip" shortTitle="Empty Title"/>
+    <input key="virtual-key" number="6" type="Virtual" title="Virtual Set" shortTitle="Virtual">
+      <text index="0" name="Label">x</text>
+    </input>
+  </inputs>
+</vmix>
