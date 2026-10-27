@@ -577,3 +577,173 @@ def test_empty_input_with_one_title_is_filled_in(
     # No guess for 备注, and XAML must not grow a .Text suffix.
     assert _rows(scan_ui.tableView_vmixMapping.model()) == {"备注": "备注"}
     assert "Only" in scan_ui.label_vmix_scan_status.text()
+
+
+def _combo_for(view, model, box_name):
+    for row in range(model.rowCount()):
+        if model.item(row, 0).text() == box_name:
+            return row, view.indexWidget(model.index(row, 1))
+    raise AssertionError(box_name)
+
+
+@pytest.mark.qt
+def test_scan_button_sits_above_the_steps_and_is_the_filled_action(handler, scan_ui):
+    button = scan_ui.btn_scan_vmix_fields
+    assert button.text() == "进阶：扫描标题字段（API）"
+    assert button.minimumHeight() >= 40
+    assert "background" in button.styleSheet()
+    assert button.font().bold()
+    layout = scan_ui.verticalLayout_6
+    order = []
+    for index in range(layout.count()):
+        widget = layout.itemAt(index).widget()
+        if widget is not None:
+            order.append(widget)
+    assert order.index(scan_ui.label_vmix_scan_lead) < order.index(button)
+    assert order.index(button) < order.index(scan_ui.label_vmix_guide)
+    lead = scan_ui.label_vmix_scan_lead.text()
+    assert "给 vMix 的 JSON" in lead
+    assert "进阶" in lead
+
+
+@pytest.mark.qt
+def test_delegate_does_not_pop_the_list_open_as_the_editor_is_created(
+    handler, scan_ui, make_target, monkeypatch
+):
+    """The old editor called showPopup while the view was still installing it.
+
+    On a real window that list takes focus and the view closes it before a
+    choice can land. The cell itself had no arrow until then.
+    """
+    from PySide6.QtCore import QCoreApplication
+    from PySide6.QtWidgets import QComboBox
+
+    opened = []
+    monkeypatch.setattr(
+        QComboBox, "showPopup", lambda self: opened.append(self), raising=True
+    )
+    handler.updatevMixTable([make_target("主队得分")])
+    handler._field_delegate.field_names = ["Home Score.Text", "CLOCK.Text"]
+    model = scan_ui.tableView_vmixMapping.model()
+    editor = handler._field_delegate.createEditor(
+        scan_ui.tableView_vmixMapping, None, model.index(0, 1)
+    )
+    QCoreApplication.processEvents()
+    assert opened == []
+    assert isinstance(editor, QComboBox)
+    editor.deleteLater()
+
+
+@pytest.mark.qt
+def test_every_row_can_be_picked_by_hand_after_scan(
+    handler, scan_ui, make_target, monkeypatch, qtbot
+):
+    """Auto-match fills some rows. Every row, including those, stays editable."""
+    import vmix_ui_handler
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QComboBox
+
+    handler.updatevMixTable(
+        [
+            make_target("主队得分"),
+            make_target("客队得分"),
+            make_target("比赛时间"),
+            make_target("节次"),
+            make_target("24秒"),
+            make_target("主队犯规"),
+            make_target("客队犯规"),
+            make_target("备注"),
+        ]
+    )
+    view = scan_ui.tableView_vmixMapping
+    # Before a scan the cells are plain text, so a name can still be typed.
+    assert view.indexWidget(view.model().index(0, 1)) is None
+
+    monkeypatch.setattr(vmix_ui_handler.threading, "Thread", _ImmediateThread)
+    monkeypatch.setattr(
+        vmix_ui_handler,
+        "fetch_vmix_api_xml",
+        lambda host, port: FIXTURE.read_text(encoding="utf-8"),
+    )
+    scan_ui.inputLineEdit_vmix.setText("2")
+    scan_ui.btn_scan_vmix_fields.click()
+
+    model = view.model()
+    names = list(GT_FIELDS)
+    for row in range(model.rowCount()):
+        combo = view.indexWidget(model.index(row, 1))
+        assert isinstance(combo, QComboBox), model.item(row, 0).text()
+        assert [combo.itemText(i) for i in range(combo.count())] == names
+        assert combo.isEditable()
+    # Guessed and not guessed: both lists include fields the row is not using.
+    _score_row, score = _combo_for(view, model, "主队得分")
+    assert score.currentText() == "Home Score.Text"
+    _note_row, note = _combo_for(view, model, "备注")
+    assert note.currentText() == "备注"
+    assert note.findText("Home Title.Text") >= 0
+
+    # Hand edit of an auto-filled row, via the combo's own activation.
+    score.setCurrentIndex(score.findText("Period.Text"))
+    score.textActivated.emit("Period.Text")
+    assert model.item(_score_row, 1).text() == "Period.Text"
+
+    # A row the scan left alone can be filled from the same list.
+    note.lineEdit().setText("Home Title.Text")
+    note.lineEdit().editingFinished.emit()
+    assert model.item(_note_row, 1).text() == "Home Title.Text"
+
+    # Opening the list must not destroy the picker. Choosing an item sticks,
+    # including after the popup-close timer has run.
+    parent = scan_ui.tab_vmix
+    scan_ui.verticalLayout_6.addWidget(view)
+    parent.resize(520, 640)
+    parent.show()
+    qtbot.wait(30)
+    fouls_row, fouls = _combo_for(view, model, "主队犯规")
+    assert fouls.currentText() == "Home Fouls.Text"
+    fouls.showPopup()
+    qtbot.wait(30)
+    assert fouls.view().isVisible()
+    assert view.indexWidget(model.index(fouls_row, 1)) is fouls
+    pick = fouls.findText("ShotClock.Text")
+    item_rect = fouls.view().visualRect(fouls.view().model().index(pick, 0))
+    QTest.mouseClick(
+        fouls.view().viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        item_rect.center(),
+    )
+    qtbot.wait(30)
+    assert model.item(fouls_row, 1).text() == "ShotClock.Text"
+    assert fouls.currentText() == "ShotClock.Text"
+    assert view.indexWidget(model.index(fouls_row, 1)) is fouls
+
+    # A later scan keeps every hand edit, and rebuilding the table (a box
+    # move does that) puts the same list back on every row.
+    scan_ui.btn_scan_vmix_fields.click()
+    again = _rows(view.model())
+    assert again["主队得分"] == "Period.Text"
+    assert again["备注"] == "Home Title.Text"
+    assert again["主队犯规"] == "ShotClock.Text"
+    assert again["客队得分"] == "Away Score.Text"
+
+    handler.updatevMixTable(
+        [
+            make_target("主队得分"),
+            make_target("客队得分"),
+            make_target("比赛时间"),
+            make_target("节次"),
+            make_target("24秒"),
+            make_target("主队犯规"),
+            make_target("客队犯规"),
+            make_target("备注"),
+        ]
+    )
+    model = view.model()
+    assert _rows(model)["主队犯规"] == "ShotClock.Text"
+    assert _rows(model)["备注"] == "Home Title.Text"
+    for row in range(model.rowCount()):
+        combo = view.indexWidget(model.index(row, 1))
+        assert isinstance(combo, QComboBox)
+        assert combo.findText("Away Fouls.Text") >= 0

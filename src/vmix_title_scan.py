@@ -771,9 +771,9 @@ def format_scan_success(
         else:
             parts.append("没有需要自动填写的格子。")
         if unmatched:
-            parts.append(f"还有 {unmatched} 个没猜到，点右列下拉选择，或直接手打。")
+            parts.append(f"还有 {unmatched} 个没猜到，在那一行的下拉里选，或直接手打。")
         else:
-            parts.append("右列可以下拉改，也可以手打。")
+            parts.append("每一行的下拉都可以改，也可以手打。")
         return "".join(parts)
     parts = [
         f"Scanned “{name}” (input {title.number}, {kind}): {count} text field(s). "
@@ -785,9 +785,12 @@ def format_scan_success(
     elif kept:
         parts.append(f"Kept all {kept} row(s) you already edited. ")
     if unmatched:
-        parts.append(f"{unmatched} row(s) were not guessed — pick or type them.")
+        parts.append(
+            f"{unmatched} row(s) were not guessed — pick them in that row's dropdown, "
+            "or type a name."
+        )
     else:
-        parts.append("Use the dropdown in the right column, or type a name.")
+        parts.append("Every row's dropdown can be changed, or you can type a name.")
     return "".join(parts)
 
 
