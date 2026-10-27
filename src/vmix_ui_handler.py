@@ -5,14 +5,23 @@ from PySide6.QtCore import QCoreApplication, QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QGridLayout,
+    QHeaderView,
     QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QStyledItemDelegate,
 )
 
-from theme import button_text_color, color as theme_color, media_icon, muted_color
+from theme import (
+    button_text_color,
+    color as theme_color,
+    is_dark,
+    media_icon,
+    muted_color,
+)
 
 from text_detection_target import TextDetectionTarget
 from ui_mainwindow import Ui_MainWindow
@@ -72,12 +81,69 @@ class _ScanBridge(QObject):
     finished = Signal(object)
 
 
-class VmixFieldDelegate(QStyledItemDelegate):
-    """Editable combo for the vMix field column.
+class VmixFieldCombo(QComboBox):
+    """One mapping row's vMix field picker. It stays in the cell.
 
-    With no scanned names yet, the cell is an ordinary line edit, same as
-    before. After a scan, the dropdown lists those names and still accepts
-    a name typed by hand.
+    Opening a combo only while the cell is editing does not work here: the
+    view waits out the double-click interval before it creates the editor,
+    and showing the list from that editor makes the list lose focus and
+    close before the click can land. A combo that is already in the cell
+    opens its list on a normal click of the arrow.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("combo_vmixField")
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        # The built-in completer is a second popup and steals the click.
+        self.setCompleter(None)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMaxVisibleItems(18)
+        self._mapping_ready = False
+        self._box_name = ""
+        self._popup_open = False
+
+    def wheelEvent(self, event):
+        # Scrolling the page must not change the mapped field.
+        popup = self.view()
+        if popup is not None and popup.isVisible():
+            super().wheelEvent(event)
+            return
+        event.ignore()
+
+    def showPopup(self):
+        popup = self.view()
+        if popup is not None and self.count() > 0:
+            width = self.width()
+            metrics = popup.fontMetrics()
+            for i in range(self.count()):
+                width = max(width, metrics.horizontalAdvance(self.itemText(i)) + 36)
+            popup.setMinimumWidth(max(width, 180))
+            popup.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self._popup_open = True
+        super().showPopup()
+
+    def hidePopup(self):
+        super().hidePopup()
+        # editingFinished can fire while the list is closing, still carrying
+        # the previous text. Keep the "list is closing" flag until that
+        # signal has run; the choice itself is committed from textActivated.
+        self._popup_open = True
+        # Tied to this combo: dropped if the row is rebuilt before it runs.
+        QTimer.singleShot(0, self, self._popup_settled)
+
+    def _popup_settled(self):
+        self._popup_open = False
+
+
+class VmixFieldDelegate(QStyledItemDelegate):
+    """Line edit for the vMix column before a scan has produced names.
+
+    After a scan, each row has a VmixFieldCombo instead. This delegate still
+    builds a combo if something asks it to edit a cell that has names, but
+    it must not open the list itself: that list is closed by the click that
+    created the editor.
     """
 
     def __init__(self, parent=None):
@@ -86,18 +152,19 @@ class VmixFieldDelegate(QStyledItemDelegate):
         self.placeholder = ""
 
     def createEditor(self, parent, option, index):
+        view = self.parent()
+        if view is not None and view.indexWidget(index) is not None:
+            return None
         if not self.field_names:
             return super().createEditor(parent, option, index)
         combo = QComboBox(parent)
         combo.setEditable(True)
         combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        combo.setCompleter(None)
         combo.addItems(self.field_names)
         if self.placeholder and combo.lineEdit() is not None:
             combo.lineEdit().setPlaceholderText(self.placeholder)
-        combo.activated.connect(lambda _index, box=combo: self._commit_editor(box))
-        # Open the list on the click that started the edit. Tied to the combo
-        # so it is dropped if the editor is destroyed first.
-        QTimer.singleShot(0, combo, combo.showPopup)
+        combo.textActivated.connect(lambda _text, box=combo: self._commit_editor(box))
         return combo
 
     def _commit_editor(self, editor):
@@ -124,6 +191,7 @@ class VMixUIHanlder:
         self._zh = True
         self._scan_busy = False
         self._scan_query = ""
+        self._mapping_combos_live = False
         self.vmixUiSetup()
 
     def globalSettingsChanged(self, settingName, value):
@@ -184,12 +252,7 @@ class VMixUIHanlder:
         view.setModel(QStandardItemModel())
         self._field_delegate = VmixFieldDelegate(view)
         view.setItemDelegateForColumn(1, self._field_delegate)
-        view.setEditTriggers(
-            QAbstractItemView.EditTrigger.SelectedClicked
-            | QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.AnyKeyPressed
-        )
+        self._set_inline_editing(True)
         mapping = fetch_data(SETTINGS_FILE, "vmix_mapping", {})
         if mapping:
             self.vmixUpdater.set_field_mapping(mapping)
@@ -201,6 +264,12 @@ class VMixUIHanlder:
         self._scan_bridge = _ScanBridge(view)
         self._scan_bridge.finished.connect(self._on_scan_finished)
         self._install_vmix_guide()
+        # The mapping table is the part you edit after a scan. Let it take
+        # the spare height instead of the instructions eating the page.
+        page = getattr(self.ui, "tab_vmix", None)
+        grid = page.layout() if page is not None else None
+        if isinstance(grid, QGridLayout):
+            grid.setRowStretch(1, 1)
 
     def restoreUiState(self):
         """Show the current connection and running state again, e.g. after
@@ -228,6 +297,7 @@ class VMixUIHanlder:
     def refreshToggleButton(self):
         """Redraw the start/stop button, e.g. after a light/dark switch."""
         self._updateToggleText(self.ui.pushButton_startvmix.isChecked())
+        self._style_scan_button()
 
     def togglevMix(self, value):
         if not self.vmixUpdater:
@@ -260,7 +330,9 @@ class VMixUIHanlder:
             self.btn_scan_vmix_fields = existing
             self.label_vmix_scan_status = self.ui.label_vmix_scan_status
             self.btn_copy_vmix_api = self.ui.btn_copy_vmix_api
+            self._ensure_scan_lead()
             self._connect_guide_buttons(replace=True)
+            self._place_vmix_guide_widgets()
             self._vmix_guide_installed = True
             self.apply_vmix_guide_texts(self._zh)
             return
@@ -268,6 +340,9 @@ class VMixUIHanlder:
         layout = getattr(self.ui, "verticalLayout_6", None)
         if parent is None or layout is None:
             return
+        self.label_vmix_scan_lead = QLabel(parent)
+        self.label_vmix_scan_lead.setObjectName("label_vmix_scan_lead")
+        self.label_vmix_scan_lead.setWordWrap(True)
         self.label_vmix_guide = QLabel(parent)
         self.label_vmix_guide.setWordWrap(True)
         self.label_vmix_guide.setTextFormat(Qt.TextFormat.RichText)
@@ -282,19 +357,81 @@ class VMixUIHanlder:
         self.btn_copy_vmix_api = QPushButton(parent)
         self.btn_copy_vmix_api.setCursor(Qt.CursorShape.PointingHandCursor)
         self._connect_guide_buttons()
-        layout.addWidget(self.label_vmix_guide)
-        layout.addWidget(self.btn_scan_vmix_fields)
-        layout.addWidget(self.label_vmix_scan_status)
-        layout.addWidget(self.btn_copy_vmix_api)
+        self.ui.label_vmix_scan_lead = self.label_vmix_scan_lead
         self.ui.label_vmix_guide = self.label_vmix_guide
         self.ui.btn_scan_vmix_fields = self.btn_scan_vmix_fields
         self.ui.label_vmix_scan_status = self.label_vmix_scan_status
         self.ui.btn_copy_vmix_api = self.btn_copy_vmix_api
+        self._place_vmix_guide_widgets()
         self._vmix_guide_installed = True
         self.apply_vmix_guide_texts(True)
 
+    def _ensure_scan_lead(self):
+        lead = getattr(self.ui, "label_vmix_scan_lead", None)
+        if lead is None:
+            parent = (
+                getattr(self.ui, "tab_vmix", None) or self.btn_scan_vmix_fields.parent()
+            )
+            lead = QLabel(parent)
+            lead.setObjectName("label_vmix_scan_lead")
+            lead.setWordWrap(True)
+            self.ui.label_vmix_scan_lead = lead
+        self.label_vmix_scan_lead = lead
+
+    def _place_vmix_guide_widgets(self):
+        """Scan button first, then the result line, then the long steps.
+
+        The button used to sit under a block of instructions, so it read as
+        one more sentence. It is the action on this page.
+        """
+        layout = getattr(self.ui, "verticalLayout_6", None)
+        if layout is None:
+            return
+        widgets = [
+            self.label_vmix_scan_lead,
+            self.btn_scan_vmix_fields,
+            self.label_vmix_scan_status,
+            self.label_vmix_guide,
+            self.btn_copy_vmix_api,
+        ]
+        for widget in widgets:
+            layout.removeWidget(widget)
+        for widget in widgets:
+            layout.addWidget(widget)
+
+    def _style_scan_button(self):
+        button = getattr(self, "btn_scan_vmix_fields", None)
+        if button is None:
+            return
+        button.setObjectName("pushButton_scanVmixFields")
+        dark = is_dark(button.palette())
+        bg, hover = ("#2563eb", "#1d4ed8") if dark else ("#1d4ed8", "#1e3a8a")
+        button.setStyleSheet(
+            "QPushButton#pushButton_scanVmixFields {"
+            f" background-color: {bg}; color: #ffffff;"
+            " border: none; border-radius: 6px;"
+            " padding: 10px 14px; font-weight: 700; }"
+            "QPushButton#pushButton_scanVmixFields:hover {"
+            f" background-color: {hover}; }}"
+            "QPushButton#pushButton_scanVmixFields:pressed {"
+            f" background-color: {hover}; }}"
+            "QPushButton#pushButton_scanVmixFields:disabled {"
+            " background-color: #64748b; color: #e2e8f0; }"
+        )
+        button.setMinimumHeight(44)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        if not button.property("scan_font_set"):
+            font = button.font()
+            font.setBold(True)
+            if font.pointSize() > 0:
+                font.setPointSize(min(font.pointSize() + 2, 16))
+            button.setFont(font)
+            button.setProperty("scan_font_set", True)
+
     def _set_mapping_headers(self):
-        model = self.ui.tableView_vmixMapping.model()
+        view = self.ui.tableView_vmixMapping
+        model = view.model()
         if not isinstance(model, QStandardItemModel):
             return
         if self._zh:
@@ -302,28 +439,197 @@ class VMixUIHanlder:
         else:
             labels = ["Field", "vMix field"]
         model.setHorizontalHeaderLabels(labels)
-        self.ui.tableView_vmixMapping.horizontalHeader().setVisible(True)
+        header = view.horizontalHeader()
+        header.setVisible(True)
+        header.setStretchLastSection(True)
+        if model.columnCount() >= 2:
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+
+    _INLINE_EDIT = (
+        QAbstractItemView.EditTrigger.SelectedClicked
+        | QAbstractItemView.EditTrigger.DoubleClicked
+        | QAbstractItemView.EditTrigger.EditKeyPressed
+        | QAbstractItemView.EditTrigger.AnyKeyPressed
+    )
+
+    def _set_inline_editing(self, enabled: bool) -> None:
+        """Line-edit cells before a scan. Afterwards the combos own the clicks."""
+        triggers = (
+            self._INLINE_EDIT
+            if enabled
+            else QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.ui.tableView_vmixMapping.setEditTriggers(triggers)
+
+    def _suspend_mapping_combos(self) -> None:
+        """Stop combos writing back while the model or the widgets are rebuilt."""
+        self._mapping_combos_live = False
+        view = self.ui.tableView_vmixMapping
+        model = view.model()
+        if not isinstance(model, QStandardItemModel):
+            return
+        for row in range(model.rowCount()):
+            widget = view.indexWidget(model.index(row, 1))
+            if isinstance(widget, VmixFieldCombo):
+                widget._mapping_ready = False
+
+    def _refresh_mapping_combo_placeholders(self) -> None:
+        view = self.ui.tableView_vmixMapping
+        model = view.model()
+        if not isinstance(model, QStandardItemModel):
+            return
+        placeholder = self._field_delegate.placeholder
+        for row in range(model.rowCount()):
+            widget = view.indexWidget(model.index(row, 1))
+            if not isinstance(widget, VmixFieldCombo):
+                continue
+            line = widget.lineEdit()
+            if line is not None:
+                line.setPlaceholderText(placeholder)
+
+    def _commit_combo(self, combo: VmixFieldCombo, text: str) -> None:
+        if not self._mapping_combos_live or not combo._mapping_ready:
+            return
+        box = combo._box_name
+        text = (text or "").strip()
+        model = self.ui.tableView_vmixMapping.model()
+        if not isinstance(model, QStandardItemModel):
+            return
+        for row in range(model.rowCount()):
+            name_item = model.item(row, 0)
+            value_item = model.item(row, 1)
+            if name_item is None or value_item is None or name_item.text() != box:
+                continue
+            if value_item.text() == text:
+                return
+            value_item.setText(text)
+            return
+
+    def _finish_combo_typing(self, combo: VmixFieldCombo) -> None:
+        # The list closing also drops focus from the line edit. That signal
+        # still has the previous text; the click is saved from textActivated.
+        if combo._popup_open:
+            return
+        self._commit_combo(combo, combo.currentText())
+
+    def _make_mapping_combo(
+        self, box_name: str, current: str, fields: list[str]
+    ) -> VmixFieldCombo:
+        combo = VmixFieldCombo()
+        combo._box_name = box_name
+        combo.blockSignals(True)
+        combo.addItems(fields)
+        combo.setCurrentText(current)
+        line = combo.lineEdit()
+        if line is not None:
+            line.blockSignals(True)
+            line.setPlaceholderText(self._field_delegate.placeholder)
+            line.blockSignals(False)
+        combo.blockSignals(False)
+        tip = (
+            "点右边箭头，从扫到的文字名里选。也可以手打。"
+            "改过之后，再扫描不会盖掉这一格。"
+            if self._zh
+            else "Use the arrow to pick a scanned text field, or type a name. "
+            "A later scan will not replace a cell you changed."
+        )
+        combo.setToolTip(tip)
+        combo.textActivated.connect(
+            lambda text, box=combo: self._commit_combo(box, text)
+        )
+        if line is not None:
+            line.editingFinished.connect(
+                lambda box=combo: self._finish_combo_typing(box)
+            )
+        return combo
+
+    def _size_mapping_rows(self) -> None:
+        view = self.ui.tableView_vmixMapping
+        model = view.model()
+        if not isinstance(model, QStandardItemModel):
+            return
+        height = 34
+        if model.rowCount():
+            sample = view.indexWidget(model.index(0, 1))
+            if isinstance(sample, QComboBox):
+                height = max(height, sample.sizeHint().height() + 6)
+        header = view.verticalHeader()
+        header.setMinimumSectionSize(height)
+        header.setDefaultSectionSize(height)
+        for row in range(model.rowCount()):
+            view.setRowHeight(row, height)
+
+    def _clear_mapping_combos(self) -> None:
+        view = self.ui.tableView_vmixMapping
+        model = view.model()
+        if not isinstance(model, QStandardItemModel):
+            return
+        for row in range(model.rowCount()):
+            index = model.index(row, 1)
+            if view.indexWidget(index) is not None:
+                view.setIndexWidget(index, None)
+
+    def _install_mapping_combos(self) -> None:
+        """Put a dropdown on every row once a scan has names to offer.
+
+        Rows that were auto-filled and rows that are still empty both get
+        the same list, so a guess can be changed by hand.
+        """
+        view = self.ui.tableView_vmixMapping
+        model = view.model()
+        self._suspend_mapping_combos()
+        self._clear_mapping_combos()
+        fields = list(self._field_delegate.field_names)
+        if (
+            not fields
+            or not isinstance(model, QStandardItemModel)
+            or model.rowCount() == 0
+        ):
+            self._set_inline_editing(True)
+            return
+        made: list[VmixFieldCombo] = []
+        for row in range(model.rowCount()):
+            box_item = model.item(row, 0)
+            value_item = model.item(row, 1)
+            if box_item is None or value_item is None:
+                continue
+            combo = self._make_mapping_combo(box_item.text(), value_item.text(), fields)
+            view.setIndexWidget(model.index(row, 1), combo)
+            made.append(combo)
+        self._set_inline_editing(False)
+        self._mapping_combos_live = True
+        for combo in made:
+            combo._mapping_ready = True
+        self._size_mapping_rows()
 
     def apply_vmix_guide_texts(self, zh: bool = True):
         self._zh = zh
-        self._field_delegate.placeholder = "下拉或手打" if zh else "Pick or type"
+        self._field_delegate.placeholder = "下拉选择，或手打" if zh else "Pick or type"
         self._set_mapping_headers()
+        self._refresh_mapping_combo_placeholders()
         if not getattr(self, "_vmix_guide_installed", False):
             return
         if zh:
+            self.label_vmix_scan_lead.setText(
+                "日常出站用左边「文本文件」里的「给 vMix 的 JSON」。"
+                "这一页是进阶：点下面这个按钮，把标题里的文字名读出来，"
+                "再在表格里一行一行选。"
+            )
             self.ui.pushButton_startvmix.setToolTip(
                 "进阶。按映射表用 Web API 的 SetText 更新标题文字。"
                 "日常请用「给 vMix 的 JSON」。"
             )
             self.ui.tableView_vmixMapping.setToolTip(
                 "左列是光为的字段，右列是 vMix 标题里的文字名。"
-                "点右列可下拉（扫描之后）或手打。"
+                "扫描之后每一行都有下拉，自动填上的也能改，没填上的可以自己选。"
                 "扫描只填空着的和仍显示字段原名的格子，你改过的不会被盖掉。"
             )
             self.btn_scan_vmix_fields.setText("进阶：扫描标题字段（API）")
             self.btn_scan_vmix_fields.setToolTip(
-                "可选。向 vMix Web Controller 读取标题里的文字字段，填进右列下拉。"
-                "不改你已经填好的映射。日常出站请用「给 vMix 的 JSON」。"
+                "可选。向 vMix 读取这个标题里的文字字段。"
+                "读完后下面每一行都能下拉改，包括已经自动填上的。"
+                "不改你已经手改过的映射。日常出站请用「给 vMix 的 JSON」。"
             )
             self.btn_copy_vmix_api.setText("一键复制 API 示例 / 当前映射")
             self.label_vmix_guide.setText(
@@ -335,25 +641,34 @@ class VMixUIHanlder:
                 "1）vMix → Settings → Web Controller → 勾选 Enable（端口一般 8088）<br>"
                 "2）填主机和端口。Input 可填编号、标题名或 Key；"
                 "空着或对不上时，扫描会让你选一个标题<br>"
-                "3）点「进阶：扫描标题字段（API）」。右列变成下拉，也可以手打。"
+                "3）点上面的「进阶：扫描标题字段（API）」。"
+                "下面每一行右边都变成下拉，列出扫到的文字名，也可以手打。"
                 "空着的、以及还显示成光为字段原名的格子，会按名字猜一次；"
-                "<b>你已经改过的格子不会被盖掉</b><br>"
+                "<b>你已经改过的格子不会被盖掉</b>。"
+                "猜错了或没猜到的，直接在那一行的下拉里改<br>"
                 "4）核对映射后，再点「启动 vMix」"
             )
         else:
+            self.label_vmix_scan_lead.setText(
+                "Day to day, use JSON for vMix on the Text files page. "
+                "This page is the advanced path: scan the title, then pick "
+                "each field in the table."
+            )
             self.ui.pushButton_startvmix.setToolTip(
                 "Advanced. Push mapped fields with the Web API SetText. "
                 "Most people should use JSON for vMix instead."
             )
             self.ui.tableView_vmixMapping.setToolTip(
                 "Left: ScoreSight field. Right: vMix text field. "
-                "After a scan, click the right column for a dropdown, or type. "
+                "After a scan, every row has a dropdown, including rows that "
+                "were filled automatically. "
                 "A scan fills empty cells and cells still showing the box name; "
                 "cells you already edited are kept."
             )
             self.btn_scan_vmix_fields.setText("Advanced: scan title fields (API)")
             self.btn_scan_vmix_fields.setToolTip(
                 "Optional. Read text field names from the vMix Web Controller. "
+                "Afterwards every row can be changed from the dropdown. "
                 "Does not replace mappings you already edited. "
                 "JSON for vMix is the usual path."
             )
@@ -365,10 +680,12 @@ class VMixUIHanlder:
                 "you already built.<br>"
                 "Enable Web Controller (port 8088), then "
                 "“Advanced: scan title fields (API)”. "
-                "The right column becomes a dropdown you can also type in. "
+                "Every row on the right becomes a dropdown you can also type in. "
                 "Empty cells and cells still showing the box name are guessed once; "
-                "<b>cells you already edited are kept</b>."
+                "<b>cells you already edited are kept</b>. "
+                "Change any guess from that row's dropdown."
             )
+        self._style_scan_button()
 
     def _set_scan_status(self, text: str, kind: str) -> None:
         label = getattr(self, "label_vmix_scan_status", None)
@@ -519,6 +836,9 @@ class VMixUIHanlder:
         is not overwritten. Returns (filled, kept, unmatched).
         """
         fields = list(title.fields)
+        # Drop the old pickers before rewriting cells, so a combo that is
+        # destroyed cannot write its previous text back over a new guess.
+        self._suspend_mapping_combos()
         self._field_delegate.field_names = fields
         model = self.ui.tableView_vmixMapping.model()
         if not isinstance(model, QStandardItemModel):
@@ -558,6 +878,7 @@ class VMixUIHanlder:
                     unmatched += 1
         finally:
             model.blockSignals(False)
+        self._install_mapping_combos()
         if filled:
             self.vmixMappingChanged()
         return filled, kept, unmatched
@@ -598,6 +919,9 @@ class VMixUIHanlder:
 
     def updatevMixTable(self, detectionTargets: list[TextDetectionTarget]):
         mapping_storage = fetch_data(SETTINGS_FILE, "vmix_mapping")
+        # Replacing the model destroys the row combos. Silence them first so
+        # they cannot write a half-cleared value into the new model.
+        self._suspend_mapping_combos()
         # a new model with exactly one row per box, so there are no stale rows
         model = QStandardItemModel()
         model.blockSignals(True)
@@ -633,3 +957,4 @@ class VMixUIHanlder:
         # send with the mapping the table shows (including the defaults for boxes
         # that have no stored mapping yet), without storing it
         self.vmixUpdater.set_field_mapping(mapping_from_model(model))
+        self._install_mapping_combos()
