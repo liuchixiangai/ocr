@@ -26,10 +26,6 @@ not enabled.
 
 ### Fixed
 
-- **窗口上能看到通道版本。** 标题栏改为 `光为 OCR · ` 加上 `GW_RELEASE`（和自动更新、下载站 `version.json` 用的是同一个字符串），不再只显示上游 ScoreSight 的 `v0.4.1`。状态栏右侧和「关于」里也是这个通道版本；关于里仍保留上游版本，便于对照 MIT 许可。
-- **OBS 没有画面时不再干等几十秒。** 第一个尺寸已经有像素就马上用，日志里记下用了多少毫秒。DirectShow 已经打开、但每帧都是平坦的黑时，不再去试 Media Foundation（失败的读取最长大约 10 秒）。大约 8 秒还没有画面就停，给出中文提示。探测在采集线程上，不在界面线程上；刷新中途停下来会放开这一张图。
-- **暗的 LED 计分牌不再被当成 OBS 没画面。** 空白只认「几乎全黑、而且没有起伏」：整幅是 0，或是有限范围的一片 16。数字还在、只是亮度不超过 8 的计分牌会继续当有画面，不会弹出「启动虚拟摄像机」。黑底上的一两个亮点也不算有画面。提示要连续大约一秒的空白才出现，短促的淡出黑不会闪一下。
-- **OBS 虚拟摄像机不再一直黑屏。** 同一台电脑上 vMix Video 能出 1920×1080，是因为 vMix 会拒绝自己不支持的分辨率，OpenCV 就退回真实画面。OBS Virtual Camera（以及 Streamlabs 的虚拟摄像头）在 OpenCV 4.14 的 DirectShow 里会被强制要 NV12，而且默认先要 640×480；OBS 的 `SetFormat` 对没在输出的尺寸也返回成功，采样器对不上就整幅黑，读数一直是「无读数」，也不报错。旧插件名 OBS-Camera 不在这个强制名单里，所以还会再试 YUY2 / NV12 / MJPG。DirectShow 一次帧都读不到时，才按设备名（不是 DirectShow 的序号）去打开 Media Foundation 的原生格式。已经读到整幅黑就不再试它。每次失败都会先释放设备；刷新和换源也会先关掉上一路，下一次打开会等到上一路真正放开。打开之后如果连续多帧仍是黑的，画面上用中文提示：先在 OBS 里点「启动虚拟摄像机」，确认 OBS 预览有画面，再点这里的刷新。向导和空源说明里也有同样的顺序。vMix Video、美乐威、Blackmagic、禾鸟、文件和屏幕源的打开方式不变。
 - **中文队名可以识别。** 新加的字段以前按数字处理，识别时又只允许英文和数字，框住记分牌上的队名会变成空白或乱数字。点「框选」会先问要比什么：主队得分、客队得分、比赛时间、24秒、节次、犯规、主队队名、客队队名（中文文字）、自定义文本、自定义数字。队名和自定义文本用 PP-OCR 的完整字库读简体中文；比分、犯规、时间仍只认数字。写出的 JSON 列名是 home_name、away_name。便携通道 `2026.10.27.2`：框选先选字段，中文队名走完整字库；JSON 键 home_name / away_name。
 - **vMix 标题字段可以手选了。** 「进阶：扫描标题字段（API）」改成这一页最显眼的按钮（仍标明是进阶，日常继续用「给 vMix 的 JSON」）。扫描之后，映射表每一行右边都是下拉，列出该标题的文字字段；自动填上的可以改，没猜到的可以自己选，也可以手打。之前要点格子才弹出下拉，弹出后又马上关掉，所以经常选不中。便携通道 `2026.10.27.2`：vMix 扫描按钮更显眼，映射下拉可以逐行手选；主推仍是 JSON 数据源。
 - **比赛时间和 24 秒最后几秒的小数。** 牌面从整数切到一位小数（`0:04.9`、`4.9`，点被认成逗号或冒号也算）时，读数不再被格式滤掉，也不会砍成整数。`results.json` 里 `game_clock` / `shot_clock` 按小数连续写出。比分、犯规仍是整数。时钟和 24 秒继续不加 LED 防抖。便携通道 `2026.10.26.6`。
@@ -38,6 +34,19 @@ not enabled.
 - **预览顺滑。** 摄像头、vMix Video 和本地视频不再大约一秒一跳，大约每秒 15 张。便携通道 `2026.10.26.5`。
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
 - **Game clock reaches the files while a sport is selected.** A jump from `0:00` to a live countdown was held until one time stayed still for 3 seconds, so a clock that changes every reading never went out (`results.json` stayed at `:00.0` while the field list showed the new time in green). A legal pace is accepted after those same few seconds. Removing leading zeros no longer turns `0:00.0` into `:00.0`. A bare Chinese period numeral such as 「二」is published as `2`. Portable channel `2026.10.26.4`.
+
+## [2026.10.27.3] - 2026-10-27
+
+Portable channel `2026.10.27.3`: the window title, status bar and About show
+`GW_RELEASE` instead of upstream ScoreSight `v0.4.1`, and OBS Virtual Camera
+no longer stays black. Installed copies on `2026.10.27.2` are offered this
+update when `version.json` is the same string. vMix Video and capture cards
+are unchanged.
+
+### Fixed
+
+- **窗口上能看到通道版本。** 标题栏改为 `光为 OCR · ` 加上 `GW_RELEASE`（和自动更新、下载站 `version.json` 用的是同一个字符串），不再只显示上游 ScoreSight 的 `v0.4.1`。状态栏右侧和「关于」里也是这个通道版本；关于里仍保留上游版本，便于对照 MIT 许可。便携通道 `2026.10.27.3`。发布时网站 `version.json` 的 `version` 必须是同一个 `2026.10.27.3`。
+- **OBS 虚拟摄像机不再一直黑屏。** OBS Virtual Camera（以及 Streamlabs 的虚拟摄像头）分层打开 DirectShow 画布，第一个已经有像素的尺寸马上用，不再干等几十秒。空白只认平坦的近黑（整幅是 0，或有限范围的一片 16）；数字还在、只是很暗的 LED 计分牌，以及黑底上的一两个亮点，不当成没画面。连续空白大约一秒后给出中文提示：先在 OBS 里点「启动虚拟摄像机」，确认预览有画面，再点刷新。大约 8 秒还没有画面就停。DirectShow 已经打开、但每帧都是平坦的黑时，不再去试 Media Foundation。vMix Video 和采集卡（美乐威、Blackmagic、禾鸟）以及文件、屏幕源的打开方式不变。便携通道 `2026.10.27.3`。
 
 ## [2026.10.26.4] - 2026-10-26
 

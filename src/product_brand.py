@@ -27,7 +27,7 @@ SIMPLIFY_OUTPUT_UI = True
 # ocr.4018.cn/version.json to the same newer string (scripts/bump_gw_release.py).
 # If they stay equal, installed copies will not offer an update.
 # The main window title, the status bar and About read this same string.
-GW_RELEASE = "2026.10.27.2"
+GW_RELEASE = "2026.10.27.3"
 
 # Download site (auto-update + "open download page").
 GW_DOWNLOAD_SITE = "https://ocr.4018.cn"
