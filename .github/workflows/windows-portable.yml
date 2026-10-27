@@ -116,18 +116,21 @@ jobs:
           if (-not (Test-Path "dist/scoresight/scoresight.exe")) {
             throw "PyInstaller did not produce dist/scoresight/scoresight.exe"
           }
-          # Spec output is dist/scoresight/scoresight.exe. The download site
-          # ships GuangWeiOCR.exe inside GuangWeiOCR-Portable.zip. This zip
-          # keeps the spec layout. It is unsigned.
-          Compress-Archive -Path dist/scoresight -DestinationPath dist/scoresight-windows-x64-portable-unsigned.zip
+          # Compress-Archive (Windows PowerShell 5.1) stores UTF-8 filenames
+          # without general-purpose bit 11. Chinese Explorer then shows
+          # 使用说明.txt as 浣跨敤璇存槑.txt. portable_zip.py sets that flag,
+          # keeps GuangWeiOCR.exe and scoresight.exe, and adds the Chinese
+          # readme and launcher. The zip is unsigned.
+          python scripts/portable_zip.py dist/scoresight -o dist/GuangWeiOCR-Portable.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload unsigned portable zip
         id: upload-unsigned-artifact
         if: steps.package.outputs.ready == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: scoresight-windows-x64-portable-unsigned
-          path: dist/scoresight-windows-x64-portable-unsigned.zip
+          name: GuangWeiOCR-Portable
+          path: dist/GuangWeiOCR-Portable.zip
           if-no-files-found: error
 
       - name: Signing is not configured

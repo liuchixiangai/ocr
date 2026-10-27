@@ -100,8 +100,7 @@ python scripts/bump_gw_release.py <newer-than-GW_RELEASE> --dry-run
 python scripts/bump_gw_release.py <newer-than-GW_RELEASE>
 ```
 
-Then upload `GuangWeiOCR-Portable.zip` and publish `version.json` with that
-`version`, the `zip_url`, and the zip's SHA-256. Details:
+Build that zip with `python scripts/portable_zip.py` so Chinese filenames keep the ZIP UTF-8 flag (`Compress-Archive` does not). Then upload `GuangWeiOCR-Portable.zip` and publish `version.json` with that `version`, the `zip_url`, and the zip's SHA-256. Details:
 [gw-portable-release.md](../gw-portable-release.md). `scripts/bump_version.py`
 only changes the ScoreSight version and prints this reminder; it does not
 edit `GW_RELEASE`.

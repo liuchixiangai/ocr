@@ -482,7 +482,10 @@ jobs:
           $setup = "dist\scoresight-$env:LABEL-windows-x64-setup.exe"
           if (-not (Test-Path $setup)) { throw "Inno Setup did not produce $setup" }
           $setup = (Resolve-Path $setup).Path
-          Compress-Archive -Path dist\scoresight -DestinationPath "dist\scoresight-$env:LABEL-windows-x64-portable.zip"
+          # Bit 11 (UTF-8 names) plus the Unicode Path extra field.
+          # Compress-Archive on Windows PowerShell 5.1 omits the flag.
+          python scripts/portable_zip.py --layout scoresight dist\scoresight -o "dist\scoresight-$env:LABEL-windows-x64-portable.zip"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           # install for the current user, run the installed app's self-test,
           # then uninstall and check that the files are gone
