@@ -5,6 +5,10 @@
 - 程序里的 `src/product_brand.py` → `GW_RELEASE`
 - 下载站 <https://ocr.4018.cn/version.json> 的 `version`
 
+主窗口标题、状态栏和「关于」显示的就是这个 `GW_RELEASE`（例如 `光为 OCR · 2026.10.27.2`），不是上游 ScoreSight 的 `v0.4.1`。用户对一下标题栏，就知道自己在跑哪一个便携包。
+
+OBS 虚拟摄像机要先在 OBS 里点「启动虚拟摄像机」，确认 OBS 预览有画面，再在这里选择 `OBS Virtual Camera`。vMix 选 `vMix Video`，不要走这条 OBS 打开路径。两边都是 DirectShow 虚拟摄像头，但 OBS 会对不匹配的分辨率假装成功，预览就是一整块黑；vMix 会拒绝，所以能看到真实的 1920×1080。还是黑的就点刷新。采集卡（美乐威、Blackmagic、禾鸟）不受这条路径影响。
+
 只有网站上的版本 **比本机 `GW_RELEASE` 更新** 时才会提示。两边一样，用户看起来就像「没有自动更新」。这是比较规则，不是检查没跑。日志里会有一行 `GW update check: installed …, site …, no update`。
 
 `scripts/bump_version.py` 改的是上游 ScoreSight 的版本号。它结束时会提醒下面这两步，但**不会**改 `GW_RELEASE`。

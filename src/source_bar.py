@@ -14,7 +14,7 @@ import platform
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt
 from PySide6.QtWidgets import QWidget
 
-from camera_info import CameraInfo
+from camera_info import CameraInfo, is_obs_virtual_camera
 from status_bar import without_credentials
 
 DOCS_URL = "https://royshil.github.io/scoresight/"
@@ -148,6 +148,20 @@ def source_error_text(
                 "SourceBar",
                 "Check that it is still on the network, then Retry or reload the "
                 "sources.",
+            ),
+        )
+    if kind == CameraInfo.CameraType.OPENCV and is_obs_virtual_camera(
+        getattr(camera_info, "description", None)
+    ):
+        return (
+            QCoreApplication.translate(
+                "SourceBar", "Can't show the OBS Virtual Camera picture."
+            ),
+            QCoreApplication.translate(
+                "SourceBar",
+                "In OBS, click Start Virtual Camera and check that the preview "
+                "there has a picture, then press refresh here. Close any other "
+                "program that is using the virtual camera, then try again.",
             ),
         )
     return (
@@ -288,6 +302,9 @@ _CAPTURE_CARD_LINES_ZH = (
     "Blackmagic（含雷电 UltraStudio）：先装 Desktop Video，并启用 DirectShow，"
     "源里找 Blackmagic WDM Capture。",
     "禾鸟等四路切换卡：列表里通常只有 1 个设备，用机身切到有记分牌的输入。",
+    "OBS 虚拟摄像机：先在 OBS 里点「启动虚拟摄像机」，确认 OBS 预览有画面，"
+    "再在这里选 OBS Virtual Camera。还是黑的就点刷新，并关掉别的正在占用它的软件。"
+    "不要为了虚拟摄像机去关 OBS。vMix 请选 vMix Video。",
 )
 
 

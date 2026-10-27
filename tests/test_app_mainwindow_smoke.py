@@ -251,7 +251,11 @@ def test_main_window_constructs_shows_and_closes(make_window, patched, qapp):
     threads_before = set(threading.enumerate())
     main_window = make_window()
 
-    assert main_window.windowTitle() == f"ScoreSight - v{__version__}"
+    from product_brand import GW_RELEASE, channel_window_title
+
+    assert main_window.windowTitle() == channel_window_title()
+    assert GW_RELEASE in main_window.windowTitle()
+    assert main_window.statusBarWidgets.label_channel.text() == GW_RELEASE
     assert main_window.ui.tableWidget_boxes.rowCount() >= len(default_boxes)
     assert main_window.ui.comboBox_camera_source.count() > 0
     assert patched["http"] == [{"port": 18099}]
@@ -285,7 +289,9 @@ def test_closing_the_window_closes_its_parentless_dialogs(make_window, qapp):
 def test_title_shows_the_profile(make_window, monkeypatch):
     monkeypatch.setenv("SCORESIGHT_PROFILE", "court2")
     window = make_window()
-    assert window.windowTitle() == f"ScoreSight - v{__version__} [court2]"
+    from product_brand import channel_window_title
+
+    assert window.windowTitle() == channel_window_title(profile="court2")
 
 
 # --- background work (#33) -----------------------------------------------------------
@@ -648,7 +654,9 @@ def test_language_change_keeps_settings_and_texts(main_window, qapp, caplog):
         # retranslateUi used to store the translated item text / reset fields
         assert fetch_data("scoresight.json", "out_api_encoding") == "XML"
         assert main_window.ui.lineEdit_vmixPort.text() == "8123"
-        assert main_window.windowTitle() == f"ScoreSight - v{__version__}"
+        from product_brand import channel_window_title
+
+        assert main_window.windowTitle() == channel_window_title()
     finally:
         qapp.removeTranslator(main_window.translator)
 
@@ -1585,20 +1593,24 @@ def test_pausing_the_outputs_shows_everywhere(main_window, patched, make_result)
     )
     assert ui.frame_pausedBanner.isVisibleTo(main_window)
     assert "Outputs paused" in ui.label_pausedBanner.text()
-    assert main_window.windowTitle() == f"⏸ ScoreSight - v{__version__}"
+    from product_brand import channel_window_title
+
+    assert main_window.windowTitle() == channel_window_title(paused=True)
     chip = main_window.statusBarWidgets.label_paused
     assert not chip.isHidden() and chip.text().startswith("PAUSED 00:0")
     assert main_window.readingDelegate.paused
     # the readings keep updating, the outputs don't get them
     main_window.obs_websocket_client = FakeObsClient()
-    main_window.ocrResult([make_result("Home Score", "12")])
-    assert box_value(main_window, "Home Score") == "12"
+    main_window.ocrResult([make_result("主队得分", "12")])
+    assert box_value(main_window, "主队得分") == "12"
     assert patched["obs"] == []
 
     ui.pushButton_resumeOutputs.click()  # the banner's Resume
     assert not ui.pushButton_stopUpdates.isChecked()
     assert not ui.frame_pausedBanner.isVisibleTo(main_window)
-    assert main_window.windowTitle() == f"ScoreSight - v{__version__}"
+    from product_brand import channel_window_title
+
+    assert main_window.windowTitle() == channel_window_title()
     assert chip.isHidden()
     assert not main_window.readingDelegate.paused
 
@@ -3402,8 +3414,13 @@ def test_appearance_menu_shows_the_stored_scheme(make_window):
 
 
 def test_about_dialog_shows_the_version_and_no_dead_links(main_window):
+    from product_brand import GW_RELEASE
+
     dialog = main_window.createAboutDialog()
-    assert __version__ in dialog.ui.label_version.text()
+    version = dialog.ui.label_version.text()
+    assert GW_RELEASE in version
+    assert version.startswith("光为 OCR")
+    assert __version__ in version
     text = dialog.ui.label.text()
     assert "scoresight.live" not in text
     assert "https://github.com/royshil/scoresight/issues" in text
@@ -3859,6 +3876,51 @@ def test_a_source_error_shows_a_banner_with_retry(make_window, monkeypatch, patc
     # another source: the banner goes
     window.reset_playing_source()
     assert not ui.frame_sourceError.isVisibleTo(window)
+
+
+def test_obs_blank_frames_show_the_hint_and_a_picture_clears_it(make_window):
+    window = make_window()
+    window.show()
+    window.image_viewer = FakeViewer(
+        CameraInfo("OBS Virtual Camera", "obs", 0, CameraInfo.CameraType.OPENCV),
+        None,
+        None,
+        None,
+    )
+    window.cameraConnectedEnableUI()
+    assert window.ui.widget_viewOptions.isEnabled()
+
+    window.updateObsBlankPreview(True)
+    assert window.ui.frame_sourceError.isVisibleTo(window)
+    text = window.ui.label_sourceError.text()
+    assert "Can't show the OBS Virtual Camera" in text
+    assert "Start Virtual Camera" in text
+    # Refresh stays available: a black picture does not lock the view tools.
+    assert window.ui.widget_viewOptions.isEnabled()
+
+    window.updateObsBlankPreview(False)
+    assert not window.ui.frame_sourceError.isVisibleTo(window)
+
+    # vMix Video is a dark frame, not this banner.
+    window.image_viewer = FakeViewer(
+        CameraInfo("vMix Video", "vmix", 1, CameraInfo.CameraType.OPENCV),
+        None,
+        None,
+        None,
+    )
+    window.updateObsBlankPreview(True)
+    assert not window.ui.frame_sourceError.isVisibleTo(window)
+
+    window.image_viewer = FakeViewer(
+        CameraInfo("OBS Virtual Camera", "obs", 0, CameraInfo.CameraType.OPENCV),
+        None,
+        None,
+        None,
+    )
+    window.updateError("Error: Unable to play video stream")
+    window.updateObsBlankPreview(False)
+    assert window.sourceError == "Error: Unable to play video stream"
+    assert window.ui.frame_sourceError.isVisibleTo(window)
 
 
 def test_the_source_banner_asks_for_the_screen_recording_permission(

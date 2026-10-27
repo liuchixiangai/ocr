@@ -26,6 +26,7 @@ SIMPLIFY_OUTPUT_UI = True
 # upstream ScoreSight __version__). A portable publish must bump this AND
 # ocr.4018.cn/version.json to the same newer string (scripts/bump_gw_release.py).
 # If they stay equal, installed copies will not offer an update.
+# The main window title, the status bar and About read this same string.
 GW_RELEASE = "2026.10.27.2"
 
 # Download site (auto-update + "open download page").
@@ -53,6 +54,25 @@ QQ_GROUP_WEB_URL = (
 
 # Folder name under the user's Desktop (ASCII-safe path join; name is Chinese).
 DEFAULT_OUTPUT_DIR_NAME = "光为OCR输出"
+
+
+def channel_window_title(profile: str | None = None, paused: bool = False) -> str:
+    """Main window title. The channel release, not upstream ScoreSight's version."""
+    title = f"{APP_DISPLAY_NAME} · {GW_RELEASE}"
+    if profile:
+        title += f" [{profile}]"
+    if paused:
+        title = f"⏸ {title}"
+    return title
+
+
+def about_version_text(upstream_version: str) -> str:
+    """About dialog version block. Channel release first, upstream kept for MIT."""
+    return (
+        f"{APP_DISPLAY_NAME}  {GW_RELEASE}\n"
+        f"基于 {UPSTREAM_NAME} v{upstream_version}（{LICENSE_NAME}）\n"
+        f"{UPSTREAM_URL}"
+    )
 
 
 def default_output_folder() -> str:

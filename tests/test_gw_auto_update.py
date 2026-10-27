@@ -32,7 +32,14 @@ from gw_auto_update import (
     up_to_date_text,
     write_apply_bat,
 )
-from product_brand import GW_DOWNLOAD_PAGE, GW_RELEASE, GW_VERSION_JSON_URLS
+from product_brand import (
+    APP_DISPLAY_NAME,
+    GW_DOWNLOAD_PAGE,
+    GW_RELEASE,
+    GW_VERSION_JSON_URLS,
+    about_version_text,
+    channel_window_title,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -167,6 +174,19 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     assert is_newer(GW_RELEASE, "2026.10.27.1")
     assert not is_newer("2026.10.27.1", GW_RELEASE)
     assert not is_newer(GW_RELEASE, GW_RELEASE)
+
+
+def test_the_window_title_is_the_channel_release_not_the_upstream_version():
+    from version import __version__
+
+    title = channel_window_title()
+    assert title == f"{APP_DISPLAY_NAME} · {GW_RELEASE}"
+    assert __version__ not in title
+    assert channel_window_title(profile="court2") == f"{title} [court2]"
+    assert channel_window_title(paused=True) == f"⏸ {title}"
+    about = about_version_text(__version__)
+    assert about.startswith(f"{APP_DISPLAY_NAME}  {GW_RELEASE}")
+    assert f"v{__version__}" in about
 
 
 def test_same_installed_and_site_version_is_not_an_update(monkeypatch, caplog):

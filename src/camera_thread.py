@@ -12,7 +12,12 @@ import cv2
 import threading
 
 from base_video_capture import BaseVideoCapture
-from camera_info import CameraInfo
+from camera_info import (
+    CameraInfo,
+    is_obs_virtual_camera,
+    msmf_index_for_name,
+    opencv_forces_obs_nv12,
+)
 from defaults import CLEAR_AFTER_SECONDS, CLEAR_BLANK_OR_ZERO, CLEAR_NEVER
 from storage import (
     SETTINGS_FILE,
@@ -78,6 +83,55 @@ PREVIEW_INTERVAL_MS = 1000.0 / PREVIEW_TARGET_FPS
 # applied as stored, including 1280×720 chosen in Video Settings.
 PHYSICAL_CAMERA_CEILING = (1920, 1080)
 MODEST_CAMERA_SIZE = (1280, 720)
+# OBS Virtual Camera's SetFormat returns success for a size the canvas is not
+# outputting. OpenCV's DirectShow default (640×480, forced to NV12 for the
+# exact device name) then copies no samples: read() is a black frame and the
+# preview stays black. vMix Video rejects a size it cannot do, so the same
+# open falls back to a real picture. Ask OBS for these canvases, in order,
+# until a frame has pixels. A stored Video Settings size is tried first.
+OBS_CANVAS_SIZES = (
+    (1920, 1080),
+    (1280, 720),
+    (2560, 1440),
+    (3840, 2160),
+    (1600, 900),
+    (1366, 768),
+    (1080, 1920),
+    (960, 540),
+    # 4:3 boards. After the 16:9 canvases, so a normal OBS canvas does not
+    # wait on these.
+    (1024, 768),
+    (1280, 960),
+    # OpenCV's own default request. A canvas that really is 640×480 is kept;
+    # it is last because asking for it first is what comes back black.
+    (640, 480),
+)
+# Pixel formats tried, after every canvas was black, for names OpenCV does
+# not force to NV12 (legacy OBS-Camera). YUY2 is what older virtual cams
+# output; NV12 is what current OBS outputs; MJPG is what many capture cards
+# use and what a mis-detected name must still be able to ask for.
+OBS_FORMATS = ("YUY2", "NV12", "MJPG")
+# How many canvases those format retries cover. The full list is already
+# probed once without a FOURCC.
+OBS_FORMAT_SIZE_LIMIT = 3
+# Media Foundation retries after DirectShow: the device's own media type
+# first (no size), then this many canvases. A failed MSMF read can block for
+# about 10 s, so this stays at one extra size.
+OBS_MSMF_SIZE_LIMIT = 1
+# Peak (0–255) at or under this is the empty buffer OBS delivers for a size it
+# is not outputting. Scoreboard digits sit far above it.
+BLANK_FRAME_PEAK = 8
+# Blank frames to look at before giving up on a size. A failed read stops at
+# once: that is the grabber timing out, not a warmup frame.
+OBS_PROBE_READS = 8
+# Consecutive blank frames while a picture was already open before the banner
+# says the virtual camera has no picture. At the capture loop's 30 ms pace
+# this is about half a second, so a one-frame dip does not warn.
+OBS_BLANK_STREAK = 15
+# How long a new open waits for the previous OBS graph to release. Refresh
+# and a source change close the viewer first; this is the backstop when that
+# read is still inside OpenCV's 1 s grabber wait.
+OBS_REOPEN_WAIT_S = 8.0
 # Ask DirectShow / MSMF for a one-frame queue. If the device still reports a
 # deeper queue, drop at most this many already-buffered frames per read.
 # Extra grab() calls wait when the queue is empty, so this stays small.
@@ -253,9 +307,310 @@ def get_resolution(cap):
 
 
 def prefers_modest_camera_size(source_name: str | None) -> bool:
-    """Virtual program outputs (vMix Video, OBS Virtual Camera, …)."""
+    """Virtual program outputs such as vMix Video.
+
+    OBS Virtual Camera is not included. Asking it for 1280×720 is one of the
+    sizes that come back black; it has its own open path.
+    """
+    if is_obs_virtual_camera(source_name):
+        return False
     text = (source_name or "").casefold()
     return "vmix" in text or "virtual" in text
+
+
+def obs_canvas_attempts(width, height) -> list[tuple[int, int]]:
+    """Sizes to request from OBS Virtual Camera, stored size first.
+
+    A stored Video Settings size is tried first because it may be this canvas.
+    It is not trusted: a black result moves on to the common canvases.
+    """
+    sizes: list[tuple[int, int]] = []
+    width_n = _positive(width)
+    height_n = _positive(height)
+    if width_n is not None and height_n is not None:
+        sizes.append((int(width_n), int(height_n)))
+    for size in OBS_CANVAS_SIZES:
+        if size not in sizes:
+            sizes.append(size)
+    return sizes
+
+
+def obs_size_attempts(width, height) -> list[tuple[int, int, str | None]]:
+    """DirectShow opens: each canvas, no FOURCC.
+
+    For the exact name "OBS Virtual Camera", OpenCV then forces NV12 itself.
+    """
+    return [(w, h, None) for w, h in obs_canvas_attempts(width, height)]
+
+
+def obs_format_attempts(
+    source_name: str | None, width, height
+) -> list[tuple[int, int, str | None]]:
+    """DirectShow opens that name a pixel format, after every size was black.
+
+    Empty for the two names OpenCV 4.14 forces to NV12: a FOURCC in the
+    VideoCapture constructor is overwritten, and OBS's SetFormat still returns
+    success, so repeating those opens only waits on the same black graph.
+    Legacy "OBS-Camera" is not in that list, so YUY2 / NV12 / MJPG are real
+    requests there.
+    """
+    if opencv_forces_obs_nv12(source_name):
+        return []
+    sizes = obs_canvas_attempts(width, height)[:OBS_FORMAT_SIZE_LIMIT]
+    return [(w, h, fourcc) for w, h in sizes for fourcc in OBS_FORMATS]
+
+
+def obs_msmf_attempts(width, height) -> list[tuple[int | None, int | None, str | None]]:
+    """Media Foundation opens. (None, None) is the device's own media type.
+
+    Width and height are applied with set() after open: MSMF ignores them in
+    the constructor. The native type is first because that is the canvas OBS
+    is actually outputting, which is what DirectShow's 640×480 request misses.
+    """
+    native: list[tuple[int | None, int | None, str | None]] = [(None, None, None)]
+    sized = [
+        (w, h, None)
+        for w, h in obs_canvas_attempts(width, height)[:OBS_MSMF_SIZE_LIMIT]
+    ]
+    return native + sized
+
+
+def note_obs_blank(
+    streak: int, blank: bool, limit: int = OBS_BLANK_STREAK
+) -> tuple[int, str | None]:
+    """(new streak, event) for one OBS frame.
+
+    event is "blank" on the read that first reaches `limit` consecutive blank
+    frames, "clear" on the first non-blank frame after that warning, else None.
+    """
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = OBS_BLANK_STREAK
+    if limit < 1:
+        limit = 1
+    try:
+        streak = int(streak)
+    except (TypeError, ValueError):
+        streak = 0
+    if streak < 0:
+        streak = 0
+    if blank:
+        streak += 1
+        if streak == limit:
+            return streak, "blank"
+        return streak, None
+    if streak >= limit:
+        return 0, "clear"
+    return 0, None
+
+
+def msmf_friendly_names() -> list[str]:
+    """Friendly names in Media Foundation order, or [] when that list can't be read.
+
+    The order is the CAP_MSMF device index (OpenCV enumerates with
+    MFEnumDeviceSources). Off Windows this is always empty: there is no MSMF
+    index to guess from the DirectShow index.
+    """
+    if platform.system() != "Windows":
+        return []
+    try:
+        return _enumerate_msmf_friendly_names_win()
+    except Exception:
+        logger.warning("Media Foundation camera list is not available", exc_info=True)
+        return []
+
+
+class _GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", ctypes.c_uint32),
+        ("Data2", ctypes.c_uint16),
+        ("Data3", ctypes.c_uint16),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
+
+
+def _guid(data1: int, data2: int, data3: int, data4: tuple[int, ...]) -> _GUID:
+    return _GUID(data1, data2, data3, (ctypes.c_ubyte * 8)(*data4))
+
+
+# mfobjects.h: IMFAttributes vtable. Slot 13 is GetAllocatedString, slot 24 is
+# SetGUID (IUnknown's three methods, then the attribute methods in order).
+_MF_GET_ALLOCATED_STRING = 13
+_MF_SET_GUID = 24
+# Win8+ Media Foundation version (MF_SDK_VERSION << 16 | MF_API_VERSION).
+_MF_VERSION = 0x00020070
+_COINIT_APARTMENTTHREADED = 2
+_RPC_E_CHANGED_MODE = 0x80010106
+
+
+def _hr_failed(hr: int) -> bool:
+    return ctypes.c_int32(hr).value < 0
+
+
+def _com_release(unknown) -> None:
+    if not unknown:
+        return
+    vtable = ctypes.cast(
+        ctypes.cast(unknown, ctypes.POINTER(ctypes.c_void_p))[0],
+        ctypes.POINTER(ctypes.c_void_p),
+    )
+    release = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[2])
+    release(unknown)
+
+
+def _enumerate_msmf_friendly_names_win() -> list[str]:
+    """Friendly names from MFEnumDeviceSources, in that order.
+
+    A failure returns [] so the caller stays on DirectShow instead of opening
+    a capture card under a guessed index. The vtable slots are the Windows
+    SDK's IMFAttributes layout; if a future SDK inserts a method, the call
+    fails and this returns [].
+    """
+    ole32 = ctypes.windll.ole32
+    mfplat = ctypes.windll.mfplat
+    hr = int(ole32.CoInitializeEx(None, _COINIT_APARTMENTTHREADED))
+    # S_OK means this call initialized COM and must uninitialize it. S_FALSE
+    # means the thread was already initialized.
+    co_owned = ctypes.c_uint32(hr).value == 0
+    started = False
+    attributes = ctypes.c_void_p()
+    devices = ctypes.c_void_p()
+    count = ctypes.c_uint32(0)
+    names: list[str] = []
+    try:
+        if co_owned is False and ctypes.c_uint32(hr).value not in (
+            1,
+            _RPC_E_CHANGED_MODE,
+        ):
+            if _hr_failed(hr):
+                return []
+        if _hr_failed(mfplat.MFStartup(_MF_VERSION, 1)):
+            return []
+        started = True
+        if _hr_failed(mfplat.MFCreateAttributes(ctypes.byref(attributes), 1)):
+            return []
+        source_type = _guid(
+            0xC60AC5FE, 0x252A, 0x478F, (0xA0, 0xEF, 0xBC, 0x8F, 0xA5, 0xF7, 0xCA, 0xD3)
+        )
+        vidcap = _guid(
+            0x8AC3587A, 0x4AE7, 0x42D8, (0x99, 0xE0, 0x0A, 0x60, 0x13, 0xEE, 0xF9, 0x0F)
+        )
+        friendly = _guid(
+            0x60D0E559, 0x52F8, 0x4FA2, (0xBB, 0xCE, 0xAC, 0xDB, 0x34, 0xA8, 0xEC, 0x01)
+        )
+        vtable = ctypes.cast(
+            ctypes.cast(attributes, ctypes.POINTER(ctypes.c_void_p))[0],
+            ctypes.POINTER(ctypes.c_void_p),
+        )
+        set_guid = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT,
+            ctypes.c_void_p,
+            ctypes.POINTER(_GUID),
+            ctypes.POINTER(_GUID),
+        )(vtable[_MF_SET_GUID])
+        if _hr_failed(
+            set_guid(attributes, ctypes.byref(source_type), ctypes.byref(vidcap))
+        ):
+            return []
+        if _hr_failed(
+            mfplat.MFEnumDeviceSources(
+                attributes, ctypes.byref(devices), ctypes.byref(count)
+            )
+        ):
+            return []
+        array = ctypes.cast(devices, ctypes.POINTER(ctypes.c_void_p))
+        get_string = None
+        for index in range(int(count.value)):
+            activate = array[index]
+            if not activate:
+                return []
+            act_vtable = ctypes.cast(
+                ctypes.cast(activate, ctypes.POINTER(ctypes.c_void_p))[0],
+                ctypes.POINTER(ctypes.c_void_p),
+            )
+            if get_string is None:
+                get_string = ctypes.WINFUNCTYPE(
+                    ctypes.HRESULT,
+                    ctypes.c_void_p,
+                    ctypes.POINTER(_GUID),
+                    ctypes.POINTER(ctypes.c_void_p),
+                    ctypes.POINTER(ctypes.c_uint32),
+                )(act_vtable[_MF_GET_ALLOCATED_STRING])
+            raw = ctypes.c_void_p()
+            length = ctypes.c_uint32()
+            if _hr_failed(
+                get_string(
+                    activate,
+                    ctypes.byref(friendly),
+                    ctypes.byref(raw),
+                    ctypes.byref(length),
+                )
+            ):
+                return []
+            if not raw:
+                return []
+            names.append(ctypes.wstring_at(raw))
+            ole32.CoTaskMemFree(raw)
+        return names
+    finally:
+        if devices:
+            array = ctypes.cast(devices, ctypes.POINTER(ctypes.c_void_p))
+            for index in range(int(count.value)):
+                _com_release(array[index])
+            ole32.CoTaskMemFree(devices)
+        _com_release(attributes)
+        if started:
+            mfplat.MFShutdown()
+        if co_owned:
+            ole32.CoUninitialize()
+
+
+# One OBS virtual-camera graph at a time. The next open waits until release()
+# so a refresh does not build a second graph while the first read is still
+# inside the grabber.
+_OBS_GRAPH_LOCK = threading.Lock()
+
+
+def frame_is_blank(frame) -> bool:
+    """True when no pixel is above BLANK_FRAME_PEAK.
+
+    A failed OBS format negotiation still returns a frame, and every pixel is
+    0. A scoreboard picture is not.
+    """
+    if frame is None or not getattr(frame, "size", 0):
+        return True
+    try:
+        peak = float(frame.max())
+    except (TypeError, ValueError, AttributeError):
+        return True
+    return (not math.isfinite(peak)) or peak <= BLANK_FRAME_PEAK
+
+
+def capture_delivers_picture(capture, reads: int = OBS_PROBE_READS) -> bool:
+    """True when one of the next reads is a non-blank frame.
+
+    A read that fails ends the probe: the grabber timed out because the buffer
+    size does not match, and the next read will not start a picture. Blank
+    frames are looked at up to `reads` times, so a few empty frames at the
+    start of a good graph are skipped.
+    """
+    try:
+        reads = int(reads)
+    except (TypeError, ValueError):
+        reads = OBS_PROBE_READS
+    if reads < 1:
+        reads = 1
+    for _ in range(reads):
+        try:
+            ok, frame = capture.read()
+        except cv2.error:
+            return False
+        if not ok or frame is None:
+            return False
+        if not frame_is_blank(frame):
+            return True
+    return False
 
 
 def camera_open_ceiling(source_name: str | None) -> tuple[int, int]:
@@ -422,6 +777,26 @@ class FrameCropAndRotation:
         self.flipVertical = bool(flip)
 
 
+class _UnopenedCapture:
+    """A capture that did not open. The caller sees isOpened() False and the
+    device is not held, so a later refresh can open it."""
+
+    def isOpened(self) -> bool:
+        return False
+
+    def read(self):
+        return False, None
+
+    def release(self):
+        return None
+
+    def set(self, prop, value):
+        return False
+
+    def get(self, prop):
+        return 0.0
+
+
 class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
     """A cv2.VideoCapture shared by the capture thread (read) and the GUI thread
     (the Video Settings dialog), guarded by video_capture_mutex.
@@ -441,12 +816,18 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         params: list[int] | None = None,
         apply_video_settings: bool = False,
         source_name: str | None = None,
+        stop_check=None,
     ):
         super().__init__(capture_id, capture_backend)
         self.video_capture_mutex = threading.Lock()
         self.params = list(params) if params else []
         self.apply_video_settings = apply_video_settings
         self.source_name = source_name
+        # Called between OBS open attempts. True means this open should let go
+        # of the device (a refresh or a source change already asked the thread
+        # to stop).
+        self.stop_check = stop_check
+        self._obs_lock_held = False
         self.default_backend = capture_backend
         self.backend = capture_backend
         self.fps = None
@@ -506,12 +887,20 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
             return self.default_backend
         return backend if backend != cv2.CAP_ANY else self.default_backend
 
-    def _create_capture(self, backend):
-        if self.params:
-            return cv2.VideoCapture(self.capture_id, backend, self.params)
-        return cv2.VideoCapture(self.capture_id, backend)
+    def _create_capture(self, backend, params=None, capture_id=None):
+        device = self.capture_id if capture_id is None else capture_id
+        if params is None:
+            params = self.params
+        if params:
+            return cv2.VideoCapture(device, backend, list(params))
+        return cv2.VideoCapture(device, backend)
 
     def _open(self):
+        # OBS Virtual Camera lies about SetFormat. vMix Video stays on the
+        # path below and keeps the stored Video Settings. Media Foundation is
+        # only opened later, and only at the index of this friendly name.
+        if is_obs_virtual_camera(self.source_name) and platform.system() == "Windows":
+            return self._open_obs_virtual_camera()
         capture = self._create_capture(self.backend)
         if not capture.isOpened() and self.backend != self.default_backend:
             # e.g. a backend this OpenCV build doesn't have: falling back keeps
@@ -529,7 +918,178 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
             self._apply_settings(capture, opening=True)
         return capture
 
+    def _stop_requested(self) -> bool:
+        check = self.stop_check
+        if check is None:
+            return False
+        try:
+            return bool(check())
+        except Exception:
+            logger.exception("OBS open stop check failed")
+            return False
+
+    def _acquire_obs_graph(self) -> bool:
+        # A reopen on this same object still holds the lock. Drop it before
+        # taking it again (the lock is not re-entrant).
+        self._release_obs_graph()
+        if _OBS_GRAPH_LOCK.acquire(timeout=OBS_REOPEN_WAIT_S):
+            self._obs_lock_held = True
+            return True
+        logger.warning(
+            "OBS Virtual Camera is still held by the previous open. "
+            "Refresh the source again."
+        )
+        return False
+
+    def _release_obs_graph(self) -> None:
+        if not getattr(self, "_obs_lock_held", False):
+            return
+        self._obs_lock_held = False
+        try:
+            _OBS_GRAPH_LOCK.release()
+        except RuntimeError:
+            logger.warning("OBS graph lock was already released")
+
+    def _open_obs_virtual_camera(self):
+        """Open OBS at a canvas that has pixels, then give the device up if not.
+
+        DirectShow sizes first (the graph is built with the size, because
+        asking afterwards rebuilds it and OBS reports success for a size it
+        is not outputting). Formats next, for names OpenCV does not force to
+        NV12. Media Foundation last, at the friendly name's own index, native
+        media type first. Every failed graph is released before the next one.
+        The graph lock is held until release() so a refresh cannot open a
+        second graph while this one still exists.
+        """
+        if not self._acquire_obs_graph():
+            return _UnopenedCapture()
+        try:
+            kept = self._probe_obs_attempts(
+                obs_size_attempts(self.width, self.height),
+                cv2.CAP_DSHOW,
+                self.capture_id,
+                "DirectShow size",
+            )
+            if kept is None and not self._stop_requested():
+                kept = self._probe_obs_attempts(
+                    obs_format_attempts(self.source_name, self.width, self.height),
+                    cv2.CAP_DSHOW,
+                    self.capture_id,
+                    "DirectShow format",
+                )
+            if kept is None and not self._stop_requested():
+                kept = self._probe_obs_msmf()
+            if kept is not None:
+                return kept
+            if self._stop_requested():
+                logger.info("OBS Virtual Camera: open cancelled")
+            else:
+                logger.warning(
+                    "OBS Virtual Camera: no picture. Start Virtual Camera in OBS, "
+                    "then refresh the source."
+                )
+            self._release_obs_graph()
+            return _UnopenedCapture()
+        except Exception:
+            self._release_obs_graph()
+            raise
+
+    def _probe_obs_msmf(self):
+        names = msmf_friendly_names()
+        index = msmf_index_for_name(names, self.source_name)
+        if index is None:
+            listed = ", ".join(names) if names else "(none)"
+            logger.info(
+                "OBS Virtual Camera: Media Foundation has no device named %r (%s)",
+                self.source_name,
+                listed,
+            )
+            return None
+        logger.info(
+            "OBS Virtual Camera: Media Foundation index %s for %r "
+            "(DirectShow index was %s)",
+            index,
+            self.source_name,
+            self.capture_id,
+        )
+        return self._probe_obs_attempts(
+            obs_msmf_attempts(self.width, self.height),
+            cv2.CAP_MSMF,
+            index,
+            "Media Foundation",
+        )
+
+    def _probe_obs_attempts(self, attempts, backend, device_id, label):
+        for width, height, fourcc in attempts:
+            if self._stop_requested():
+                logger.info("OBS Virtual Camera: open cancelled before %s", label)
+                return None
+            size = (
+                "native"
+                if width is None or height is None
+                else f"{int(width)}x{int(height)}"
+            )
+            logger.info(
+                "OBS Virtual Camera: %s %s format %s device %s",
+                label,
+                size,
+                fourcc or "default",
+                device_id,
+            )
+            params: list[int] = []
+            if backend == cv2.CAP_DSHOW and width is not None and height is not None:
+                params = [
+                    cv2.CAP_PROP_FRAME_WIDTH,
+                    int(width),
+                    cv2.CAP_PROP_FRAME_HEIGHT,
+                    int(height),
+                ]
+                code = fourcc_code(fourcc) if fourcc else None
+                if code is not None:
+                    params.extend((cv2.CAP_PROP_FOURCC, int(code)))
+            try:
+                capture = self._create_capture(backend, params, device_id)
+            except cv2.error:
+                logger.info(
+                    "OBS Virtual Camera: %s %s could not be opened", label, size
+                )
+                continue
+            if (
+                backend == cv2.CAP_MSMF
+                and width is not None
+                and height is not None
+                and capture.isOpened()
+            ):
+                # The constructor does not apply a size on MSMF. set() does.
+                code = fourcc_code(fourcc) if fourcc else None
+                if code is not None:
+                    capture.set(cv2.CAP_PROP_FOURCC, int(code))
+                capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(width))
+                capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(height))
+            if not capture.isOpened():
+                capture.release()
+                logger.info("OBS Virtual Camera: %s %s did not open", label, size)
+                continue
+            if capture_delivers_picture(capture):
+                self.backend = backend
+                self._stale_grabs = request_latest_frame_buffer(capture)
+                logger.info("OBS Virtual Camera: picture via %s at %s", label, size)
+                return capture
+            logger.info(
+                "OBS Virtual Camera: %s %s had no picture; releasing it",
+                label,
+                size,
+            )
+            capture.release()
+        return None
+
     def _apply_settings(self, capture, opening: bool):
+        if is_obs_virtual_camera(self.source_name) and platform.system() == "Windows":
+            # FOURCC, size and fps each rebuild the graph. OBS reports success
+            # for a format it is not outputting, and the picture goes black.
+            # The open path already kept a canvas that had a picture.
+            self._stale_grabs = request_latest_frame_buffer(capture)
+            return
         # FOURCC first: e.g. MJPG is what unlocks the high resolutions and frame
         # rates on many USB cameras.
         code = fourcc_code(self.fourcc)
@@ -605,8 +1165,16 @@ class OpenCVVideoCaptureWithSettings(BaseVideoCapture):
         for document_name, callback in self._subscriptions:
             unsubscribe_from_data(SETTINGS_FILE, document_name, callback)
         self._subscriptions = []
-        with self.video_capture_mutex:
-            self.video_capture.release()
+        try:
+            with self.video_capture_mutex:
+                self.video_capture.release()
+        finally:
+            self._release_obs_graph()
+
+    def __del__(self):
+        # A capture that was not release()'d must not keep the next OBS open
+        # waiting out the lock timeout.
+        self._release_obs_graph()
 
     def set(self, propId, value):
         with self.video_capture_mutex:
@@ -706,6 +1274,9 @@ class TimerThread(QThread):
     update_signal = Signal(object)
     # the source failed (can't be opened or read): it is stopping
     update_error = Signal(object)
+    # OBS frames went blank (True) or a picture came back (False). The capture
+    # keeps running; the window shows the virtual-camera hint over the picture.
+    blank_preview = Signal(bool)
     # a frame couldn't be processed; the capture keeps running
     processing_error = Signal(object)
     ocr_result_signal = Signal(list)
@@ -728,6 +1299,7 @@ class TimerThread(QThread):
         self.framestabilizer = FrameStabilizer()
         self.video_capture: BaseVideoCapture | None = None
         self.should_stop = False
+        self._obs_blank_streak = 0
         # monotonic clock (seconds); replaceable in tests
         self._clock = time.monotonic
         # Screen capture's read is a full window copy. Matching the preview
@@ -873,6 +1445,7 @@ class TimerThread(QThread):
             backend,
             apply_video_settings=True,
             source_name=self.camera_info.description,
+            stop_check=lambda: self.should_stop,
         )
 
     def connect_video_capture(self) -> bool:
@@ -1013,11 +1586,33 @@ class TimerThread(QThread):
             return
 
         self.retry_count = 0  # good frame, reset the retry count
+        self._observe_obs_frame(frame_rgb)
         try:
             self.process_frame(frame_rgb)
         except Exception as e:
             self._report_processing_error(e)
         self.sleep_fps_target()
+
+    def _observe_obs_frame(self, frame) -> None:
+        """Warn once a live OBS picture has been blank, and clear that when it returns.
+
+        vMix Video and capture cards are not watched: a covered lens is a dark
+        frame, not a virtual camera that was never started.
+        """
+        if not is_obs_virtual_camera(getattr(self.camera_info, "description", None)):
+            return
+        streak, event = note_obs_blank(self._obs_blank_streak, frame_is_blank(frame))
+        self._obs_blank_streak = streak
+        if event == "blank":
+            logger.warning(
+                "OBS Virtual Camera: %d blank frames in a row. Start Virtual "
+                "Camera in OBS, then refresh.",
+                streak,
+            )
+            self.blank_preview.emit(True)
+        elif event == "clear":
+            logger.info("OBS Virtual Camera: picture is back")
+            self.blank_preview.emit(False)
 
     def _report_processing_error(self, error):
         # Called from an except block. Keeps the thread (and the capture) alive;

@@ -82,6 +82,35 @@ def test_a_source_error_says_what_failed_and_what_to_do(kind, value, headline):
     assert ":p@" not in what
 
 
+def test_only_obs_virtual_camera_matches_that_device():
+    from camera_info import is_obs_virtual_camera
+
+    assert is_obs_virtual_camera("OBS Virtual Camera")
+    assert is_obs_virtual_camera("OBS-Camera")
+    assert is_obs_virtual_camera("Streamlabs Desktop Virtual Webcam")
+    assert not is_obs_virtual_camera("vMix Video")
+    assert not is_obs_virtual_camera("vMix Virtual Camera")
+    assert not is_obs_virtual_camera("HD Pro Webcam")
+    assert not is_obs_virtual_camera("Blackmagic WDM Capture")
+    assert not is_obs_virtual_camera("Magewell USB Capture")
+    assert not is_obs_virtual_camera("禾鸟四路")
+    assert not is_obs_virtual_camera(None)
+
+
+def test_obs_virtual_camera_error_says_to_start_it_and_refresh():
+    what, hint = source_bar.source_error_text(
+        source(CameraInfo.CameraType.OPENCV, "OBS Virtual Camera")
+    )
+    assert what.startswith("Can't show the OBS Virtual Camera")
+    assert "Start Virtual Camera" in hint
+    assert "refresh" in hint
+    # vMix Video keeps the generic camera message
+    vmix, _hint = source_bar.source_error_text(
+        source(CameraInfo.CameraType.OPENCV, "vMix Video")
+    )
+    assert vmix.startswith("Can't open vMix Video")
+
+
 def test_the_playback_speeds_cycle():
     speeds = [1]
     for _ in range(6):
@@ -245,6 +274,7 @@ def test_capture_card_guide_names_the_common_cards():
     assert "Desktop Video" in guide and "DirectShow" in guide
     assert "WDM Capture" in guide
     assert "禾鸟" in guide and "1 个设备" in guide
+    assert "启动虚拟摄像机" in guide and "vMix Video" in guide
     assert source_bar.capture_card_guide(chinese=False) == ""
     html = source_bar.capture_card_guide_html()
     assert "<li>" in html and "禾鸟" in html
