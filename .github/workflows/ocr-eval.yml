@@ -19,7 +19,7 @@ on:
       - ocr_eval/**
       - requirements.txt
       - requirements-eval.txt
-      - scripts/ci/fetch_ocr_eval.sh
+      - scripts/fetch_ocr_eval.sh
       - .github/workflows/ocr-eval.yml
   push:
     branches: [main]
@@ -33,7 +33,7 @@ on:
       - ocr_eval/**
       - requirements.txt
       - requirements-eval.txt
-      - scripts/ci/fetch_ocr_eval.sh
+      - scripts/fetch_ocr_eval.sh
       - .github/workflows/ocr-eval.yml
   workflow_dispatch:
 
@@ -72,7 +72,7 @@ jobs:
       # the module is imported from the working directory. The Tesseract
       # models are gitignored too, and that job's adapter needs them.
       - name: Fetch the OCR eval package
-        run: bash scripts/ci/fetch_ocr_eval.sh --with-tessdata
+        run: bash scripts/fetch_ocr_eval.sh --with-tessdata
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
@@ -155,7 +155,7 @@ jobs:
 
       # See the Tesseract job: the harness is a working-directory package.
       - name: Fetch the OCR eval package
-        run: bash scripts/ci/fetch_ocr_eval.sh
+        run: bash scripts/fetch_ocr_eval.sh
 
       - name: Install dependencies
         run: |
@@ -260,7 +260,7 @@ jobs:
 
       # See the Tesseract job: the harness is a working-directory package.
       - name: Fetch the OCR eval package
-        run: bash scripts/ci/fetch_ocr_eval.sh
+        run: bash scripts/fetch_ocr_eval.sh
 
       - name: Install dependencies
         # requirements-dev.txt: requirements.txt and the fetch script's PyYAML

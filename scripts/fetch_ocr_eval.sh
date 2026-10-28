@@ -31,7 +31,7 @@ WITH_TESSDATA=0
 if [ "${1:-}" = "--with-tessdata" ]; then
   WITH_TESSDATA=1
 elif [ -n "${1:-}" ]; then
-  echo "usage: scripts/ci/fetch_ocr_eval.sh [--with-tessdata]" >&2
+  echo "usage: scripts/fetch_ocr_eval.sh [--with-tessdata]" >&2
   exit 2
 fi
 
