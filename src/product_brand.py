@@ -41,6 +41,9 @@ GW_DOWNLOAD_PAGE = "https://ocr.4018.cn/"
 
 # Support QQ group (status-bar help link for Chinese edition).
 QQ_GROUP_NUMBER = "124356408"
+
+# Status bar / About. One quiet line; not a slogan on the preview.
+TAGLINE = "永久免费 · 直接供给 vMix/芯象"
 # Opens the group card in QQ when the desktop client is installed.
 # Desktop QQ often rejects mqqapi; kept for reference only.
 QQ_GROUP_OPEN_URL = (

@@ -31,7 +31,9 @@ import theme
 from product_brand import (
     GW_RELEASE,
     QQ_GROUP_NUMBER,
+    QQ_GROUP_WEB_URL,
     SIMPLIFY_OUTPUT_UI,
+    TAGLINE,
 )
 from camera_info import CameraInfo
 from output_status import (
@@ -588,6 +590,10 @@ class MainStatusBar(QObject):
         self.label_qq_help.linkActivated.connect(self.openQqGroup)
         self.label_qq_help.hide()
 
+        self.label_tagline = QLabel(statusbar)
+        self.label_tagline.setObjectName("label_statusTagline")
+        self.label_tagline.hide()
+
         # "Outputs: ● Files ● HTTP ▲ vMix ...": a button per output
         self.widget_outputs = QWidget(statusbar)
         self.widget_outputs.setObjectName("widget_statusOutputs")
@@ -619,11 +625,13 @@ class MainStatusBar(QObject):
         statusbar.addPermanentWidget(self.label_http)
         statusbar.addPermanentWidget(self.button_copy)
         statusbar.addPermanentWidget(self.label_channel)
+        statusbar.addPermanentWidget(self.label_tagline)
         statusbar.addPermanentWidget(self.label_qq_help)
         statusbar.addPermanentWidget(self.button_feedback)
         if SIMPLIFY_OUTPUT_UI:
             self.button_feedback.hide()
             self.label_qq_help.show()
+            self.label_tagline.show()
         self.retranslate()
 
     def retranslate(self):
@@ -666,15 +674,18 @@ class MainStatusBar(QObject):
         muted = theme.muted_color(self.statusbar.palette()).name()
         self.label_channel.setStyleSheet(f"QLabel {{ color: {muted}; }}")
         if SIMPLIFY_OUTPUT_UI:
-            link = '<a href="qq-group">复制群号</a>'
-            self.label_qq_help.setText(f"不会用？加 QQ 群 {QQ_GROUP_NUMBER}（{link}）")
-            self.label_qq_help.setToolTip(
-                f"点击复制群号 {QQ_GROUP_NUMBER}，到 QQ 里搜索加群"
-            )
+            link = f'<a href="qq-group">QQ 群 {QQ_GROUP_NUMBER}</a>'
+            self.label_qq_help.setText(f"不会用？加 {link}")
+            self.label_qq_help.setToolTip(f"打开加群页面，并复制群号 {QQ_GROUP_NUMBER}")
+            self.label_tagline.setText(TAGLINE)
+            self.label_tagline.setToolTip(TAGLINE)
             muted = theme.muted_color(self.statusbar.palette()).name()
             self.label_qq_help.setStyleSheet(
                 f"QLabel {{ color: {muted}; font-size: 12px; }}"
                 f" QLabel a {{ color: {muted}; }}"
+            )
+            self.label_tagline.setStyleSheet(
+                f"QLabel {{ color: {muted}; font-size: 11px; }}"
             )
         self.update(self.snapshot)
 
@@ -818,12 +829,16 @@ class MainStatusBar(QObject):
             )
 
     def openQqGroup(self, _link: str = ""):
-        """Copy the QQ group number. Desktop QQ often rejects mqqapi:// joins
-        with an unsupported-content dialog, so we never open that protocol."""
+        """Open the group page and copy the number. Desktop QQ often rejects
+        mqqapi:// joins, so the link is the browser fallback, not that protocol."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
         QGuiApplication.clipboard().setText(QQ_GROUP_NUMBER)
+        QDesktopServices.openUrl(QUrl(QQ_GROUP_WEB_URL))
         QToolTip.showText(
             self.label_qq_help.mapToGlobal(QPoint(0, 0)),
-            f"群号已复制：{QQ_GROUP_NUMBER}，请打开 QQ → 搜索 → 加群",
+            f"群号已复制：{QQ_GROUP_NUMBER}。若页面打不开，到 QQ 里搜索加群。",
             self.label_qq_help,
             msecShowTime=5000,
         )

@@ -376,12 +376,12 @@ def handler(scan_ui):
 
 @pytest.mark.qt
 def test_guide_keeps_json_primary_and_labels_scan_as_advanced(handler, scan_ui):
-    assert scan_ui.btn_scan_vmix_fields.text() == "进阶：扫描标题字段（API）"
+    assert scan_ui.btn_scan_vmix_fields.text() == "扫描标题字段"
     guide = scan_ui.label_vmix_guide.text()
     assert "给 vMix 的 JSON" in guide
     assert "进阶" in guide
     assert "不会被盖掉" in guide
-    assert guide.find("给 vMix 的 JSON") < guide.find("进阶：扫描标题字段")
+    assert guide.find("给 vMix 的 JSON") < guide.find("扫描标题字段")
 
 
 @pytest.mark.qt
@@ -589,7 +589,7 @@ def _combo_for(view, model, box_name):
 @pytest.mark.qt
 def test_scan_button_sits_above_the_steps_and_is_the_filled_action(handler, scan_ui):
     button = scan_ui.btn_scan_vmix_fields
-    assert button.text() == "进阶：扫描标题字段（API）"
+    assert button.text() == "扫描标题字段"
     assert button.minimumHeight() >= 40
     assert "background" in button.styleSheet()
     assert button.font().bold()

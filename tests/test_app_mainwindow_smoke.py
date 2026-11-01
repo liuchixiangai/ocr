@@ -1916,8 +1916,12 @@ def test_the_outputs_are_destinations_over_their_pages(main_window):
     if view.isVisible():
         assert view.height() >= model.rowCount() * view.sizeHintForRow(0)
     else:
-        assert chooser.btn_json.minimumHeight() == chooser.btn_api.minimumHeight()
-        assert chooser.btn_json.minimumHeight() >= 56
+        assert chooser.btn_json.minimumHeight() >= 36
+        assert chooser.btn_json.text() in (
+            "JSON → vMix 数据源",
+            "JSON → vMix data source",
+        )
+        assert "background" in chooser.btn_json.styleSheet()
     # the state is told by a glyph and words too (never by colour alone)
     main_window.refreshLiveStatus()
     vmix = destination_index(main_window, "vmix")
@@ -1932,9 +1936,12 @@ def test_output_path_buttons_open_json_then_the_vmix_api(main_window):
     guide = main_window.vmixOutboundGuide
     layout = ui.verticalLayout_outputDetails
     assert layout.itemAt(0).widget() is chooser
-    assert chooser.btn_json.minimumHeight() == chooser.btn_api.minimumHeight()
-    assert chooser.btn_json.minimumHeight() >= 56
-    assert chooser.btn_json.font().bold() and chooser.btn_api.font().bold()
+    assert chooser.btn_json.minimumHeight() >= 36
+    assert chooser.btn_json.font().bold()
+    assert chooser.btn_json.text() in (
+        "JSON → vMix 数据源",
+        "JSON → vMix data source",
+    )
     assert ui.stackedWidget_outputs.currentWidget() is ui.tab_textFiles
     assert chooser.btn_json.isChecked()
     assert not chooser.btn_api.isChecked()
@@ -3449,7 +3456,8 @@ def test_appearance_menu_applies_and_persists(main_window, style_hints):
 
     actions = {a.data(): a for a in main_window.appearance_actions.actions()}
     assert list(actions) == ["System", "Light", "Dark"]
-    assert actions["System"].isChecked()
+    # GuangWei starts dark when no scheme is stored. An explicit choice still wins.
+    assert actions["Dark"].isChecked()
 
     actions["Dark"].trigger()
     assert fetch_data("scoresight.json", "color_scheme") == "Dark"

@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 from theme import (
     button_text_color,
     color as theme_color,
-    is_dark,
     media_icon,
     muted_color,
 )
@@ -450,10 +449,9 @@ class VMixUIHanlder:
         if button is None:
             return
         button.setObjectName("pushButton_scanVmixFields")
-        # Slate, not the JSON blue: the blue button on the Output tab is
-        # 「JSON → vMix 数据源」. This scan action stays inside the API page.
-        dark = is_dark(button.palette())
-        bg, hover = ("#475569", "#334155") if dark else ("#334155", "#1e293b")
+        # Solid accent, one step quieter than the JSON button: this is the
+        # action inside the folded vMix API section.
+        bg, hover = ("#3d7ea6", "#326a8c")
         button.setStyleSheet(
             "QPushButton#pushButton_scanVmixFields {"
             f" background-color: {bg}; color: #ffffff;"
@@ -672,7 +670,7 @@ class VMixUIHanlder:
                 "扫描之后每一行都有下拉，自动填上的也能改，没填上的可以自己选。"
                 "扫描只填空着的和仍显示字段原名的格子，你改过的不会被盖掉。"
             )
-            self.btn_scan_vmix_fields.setText("进阶：扫描标题字段（API）")
+            self.btn_scan_vmix_fields.setText("扫描标题字段")
             self.btn_scan_vmix_fields.setToolTip(
                 "可选。向 vMix 读取这个标题里的文字字段。"
                 "读完后下面每一行都能下拉改，包括已经自动填上的。"
@@ -688,7 +686,7 @@ class VMixUIHanlder:
                 "1）vMix → Settings → Web Controller → 勾选 Enable（端口一般 8088）<br>"
                 "2）填主机和端口。Input 可填编号、标题名或 Key；"
                 "空着或对不上时，扫描会让你选一个标题<br>"
-                "3）点上面的「进阶：扫描标题字段（API）」。"
+                "3）点上面的「扫描标题字段」。"
                 "下面每一行右边都变成下拉，列出扫到的文字名，也可以手打。"
                 "空着的、以及还显示成光为字段原名的格子，会按名字猜一次；"
                 "<b>你已经改过的格子不会被盖掉</b>。"
@@ -712,7 +710,7 @@ class VMixUIHanlder:
                 "A scan fills empty cells and cells still showing the box name; "
                 "cells you already edited are kept."
             )
-            self.btn_scan_vmix_fields.setText("Advanced: scan title fields (API)")
+            self.btn_scan_vmix_fields.setText("Scan title fields")
             self.btn_scan_vmix_fields.setToolTip(
                 "Optional. Read text field names from the vMix Web Controller. "
                 "Afterwards every row can be changed from the dropdown. "
