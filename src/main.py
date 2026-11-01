@@ -58,6 +58,7 @@ SELF_TEST_MODULES = (
     "get_camera_info",
     "gui_garbage_collector",
     "gw_auto_update",
+    "gw_shell",
     "held_values",
     "http_server",
     "keyboard_shortcuts",
@@ -401,7 +402,12 @@ def run_app(args: argparse.Namespace, qt_args: list[str]) -> int:
     # before any background thread starts: collect reference cycles only on the
     # GUI thread, where finalizing Qt objects is safe (kept until the app ends)
     garbage_collector = GuiThreadGarbageCollector(app)  # noqa: F841
-    apply_color_scheme(fetch_data("scoresight.json", "color_scheme"))
+    scheme = fetch_data("scoresight.json", "color_scheme")
+    if scheme not in ("System", "Light", "Dark"):
+        from product_brand import SIMPLIFY_OUTPUT_UI
+
+        scheme = "Dark" if SIMPLIFY_OUTPUT_UI else None
+    apply_color_scheme(scheme)
     translator = load_translator(app, fetch_data("scoresight.json", "language"))
 
     main_window = MainWindow(translator, app, http_port=args.port)

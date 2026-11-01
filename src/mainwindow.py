@@ -230,7 +230,10 @@ from vmix_outbound_guide import (
 from version import __version__
 from product_brand import (
     APP_DISPLAY_NAME,
+    GW_DOWNLOAD_PAGE,
+    QQ_GROUP_NUMBER,
     SIMPLIFY_OUTPUT_UI,
+    TAGLINE,
     about_version_text,
     channel_window_title,
     configured_output_folder,
@@ -317,7 +320,7 @@ BOXES_LIST_MIN_ROWS = 3
 # The outputs list is at least this many rows tall (it scrolls when shorter).
 DESTINATIONS_LIST_MIN_ROWS = 2
 # The window's default size, made smaller on smaller screens.
-DEFAULT_WINDOW_SIZE = (1280, 800)
+DEFAULT_WINDOW_SIZE = (1480, 860)
 # False after OBS was disconnected: the saved connection ("obs") isn't opened
 # at startup until the user connects again
 OBS_AUTO_CONNECT_SETTING = "obs_auto_connect"
@@ -857,7 +860,9 @@ class MainWindow(QMainWindow):
         self.appearance_actions.setExclusive(True)
         current_scheme = fetch_data("scoresight.json", "color_scheme")
         if current_scheme not in COLOR_SCHEMES:
-            current_scheme = DEFAULT_COLOR_SCHEME
+            from gw_shell import default_color_scheme_name
+
+            current_scheme = default_color_scheme_name()
         for scheme in COLOR_SCHEMES:
             action = ui.menuAppearance.addAction(scheme)
             action.setCheckable(True)
@@ -1366,6 +1371,9 @@ class MainWindow(QMainWindow):
         self.applyLayoutUi()
         self.obsSourcesTable.retranslate()
         self.updateObsSceneStatus()
+        from gw_shell import install_gw_shell
+
+        install_gw_shell(self)
         splitter = self.ui.splitter_main
         splitter.handle(1).setToolTip(
             QCoreApplication.translate(
@@ -1986,6 +1994,9 @@ class MainWindow(QMainWindow):
         # stale after 20 detection cycles (at least 10 s)
         self.readingDelegate.setStaleAfter(20.0 / max(cadence, 0.1))
         self.ui.tableWidget_boxes.viewport().update()
+        shell = getattr(self, "gwShell", None)
+        if shell is not None:
+            shell.refresh_readings()
 
     def statusSnapshot(
         self,
@@ -2702,6 +2713,13 @@ class MainWindow(QMainWindow):
             )
         )
         about_dialog.ui.label_version.setText(about_version_text(__version__))
+        note = QLabel(about_dialog)
+        note.setObjectName("label_aboutTagline")
+        note.setWordWrap(True)
+        note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        note.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        note.setText(f"{TAGLINE}\n{GW_DOWNLOAD_PAGE}\nQQ 群 {QQ_GROUP_NUMBER}")
+        about_dialog.layout().addWidget(note)
         return about_dialog
 
     def openAboutDialog(self):
@@ -3161,7 +3179,8 @@ class MainWindow(QMainWindow):
             if item is None:
                 return
             self.ui.tableWidget_boxes.setCurrentItem(item)
-        # the Box tab shows the field's settings
+        # the Box tab shows the field's settings (also when Outbound was open)
+        self.ui.tabWidget_inspector.setCurrentWidget(self.ui.tab_box)
         self.boxSettingsUiHandler.showField(
             item.text(),
             item.data(Qt.ItemDataRole.UserRole),

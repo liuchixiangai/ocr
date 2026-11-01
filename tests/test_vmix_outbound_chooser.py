@@ -43,13 +43,16 @@ def test_path_buttons_match_and_json_ticks_the_file(qtbot):
     chooser = OutboundPathChooser()
     qtbot.addWidget(chooser)
     chooser.apply_texts(True)
-    assert chooser.btn_json.minimumHeight() == chooser.btn_api.minimumHeight()
-    assert chooser.btn_json.minimumHeight() >= 56
+    assert chooser.btn_json.minimumHeight() >= 40
+    assert chooser.btn_api.minimumHeight() < chooser.btn_json.minimumHeight()
     assert chooser.btn_json.font().bold() and chooser.btn_api.font().bold()
-    assert chooser.btn_json.text() == "JSON → vMix 数据源\n推荐"
-    assert chooser.btn_api.text() == "进阶：vMix API\n扫描标题字段"
+    assert chooser.btn_json.text() == "JSON → vMix 数据源"
+    assert "vMix API" in chooser.btn_api.text()
+    assert "SetText" in chooser.btn_api.text()
     assert "background" in chooser.btn_json.styleSheet()
     assert "background" in chooser.btn_api.styleSheet()
+    assert chooser.btn_copy_path.text() == "复制 JSON 路径"
+    assert chooser.label_fixed_folder.text() == "自动保存到桌面「光为OCR输出」"
 
     seen = []
     chooser.path_selected.connect(seen.append)

@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 
 from file_output import CSV_FILE_NAME, JSON_FILE_NAME, json_row_from_values
-from theme import is_dark
 
 JSON_PATH = "json"
 API_PATH = "api"
@@ -366,6 +365,28 @@ class VmixOutboundGuide:
                 else f"Write error: {status.last_error}"
             )
         self.label_status.setText("　|　".join(parts) if parts else "")
+        chooser = getattr(self.window, "outboundChooser", None)
+        if chooser is not None and hasattr(chooser, "set_write_status"):
+            chooser.set_write_status(self._short_status(json_p))
+
+    def _short_status(self, json_p: str | None) -> str:
+        """One line under the primary JSON button."""
+        zh = self._zh
+        writing = bool(self.ui.checkBox_saveJson.isChecked())
+        if not writing:
+            return "尚未开启写出" if zh else "JSON output is off"
+        if json_p and os.path.isfile(json_p):
+            try:
+                age = time.time() - os.path.getmtime(json_p)
+            except OSError:
+                age = None
+            if age is not None and age < 3:
+                return "已写入 · 刚刚" if zh else "Written · just now"
+            if age is not None:
+                return (
+                    f"已写入 · {int(age)} 秒前" if zh else f"Written · {int(age)}s ago"
+                )
+        return "等待首帧写出" if zh else "Waiting for the first write"
 
     def _set_path_line(self, json_p: str | None, zh: bool) -> None:
         if self.label_path is None:
@@ -449,22 +470,36 @@ class VmixOutboundGuide:
         QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
 
 
-def _outbound_button_qss(kind: str, selected: bool, dark: bool) -> str:
-    """Both path buttons stay filled and the same size. The ring shows which
-    page is open. Blue is JSON; orange is the advanced API."""
-    if kind == "json":
-        bg, hover = ("#2563eb", "#1d4ed8") if dark else ("#1d4ed8", "#1e3a8a")
-        name = "btn_outboundJson"
-    else:
-        bg, hover = ("#c2410c", "#9a3412")
-        name = "btn_outboundApi"
-    border = "#f8fafc" if selected else "transparent"
+def _primary_json_qss() -> str:
+    """The one solid action on the outbound page."""
+    return (
+        "QPushButton#btn_outboundJson {"
+        " background-color: #3d7ea6; color: #e8eaed;"
+        " border: none; border-radius: 4px;"
+        " padding: 8px 12px; font-weight: 700; }"
+        "QPushButton#btn_outboundJson:hover { background-color: #326a8c; }"
+        "QPushButton#btn_outboundJson:pressed { background-color: #326a8c; }"
+    )
+
+
+def _ghost_qss(name: str) -> str:
     return (
         f"QPushButton#{name} {{"
-        f" background-color: {bg}; color: #ffffff;"
-        f" border: 3px solid {border}; border-radius: 8px;"
+        " background: transparent; color: #e8eaed;"
+        " border: 1px solid rgba(255,255,255,0.16); border-radius: 4px;"
+        " padding: 6px 10px; font-weight: 600; }"
+        f"QPushButton#{name}:hover {{ background: #1e2430; }}"
+    )
+
+
+def _disclosure_qss(name: str, open_: bool) -> str:
+    border = "#3d7ea6" if open_ else "rgba(255,255,255,0.08)"
+    return (
+        f"QPushButton#{name} {{"
+        " background-color: #181c22; color: #e8eaed; text-align: left;"
+        f" border: 1px solid {border}; border-radius: 4px;"
         " padding: 8px 12px; font-weight: 700; }"
-        f"QPushButton#{name}:hover {{ background-color: {hover}; }}"
+        f"QPushButton#{name}:hover {{ background-color: #1e2430; }}"
     )
 
 
@@ -492,36 +527,129 @@ def focus_api_outbound(ui, guide=None) -> None:
 
 
 class OutboundPathChooser(QWidget):
-    """Two equal buttons at the top of Output: JSON data source, or vMix API."""
+    """Outbound first screen: one solid JSON button, ghost copies, API fold."""
 
     path_selected = Signal(str)
+    more_toggled = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("outboundPathChooser")
         self._zh = True
         self._guard = False
-        layout = QHBoxLayout(self)
+        self._path: str | None = None
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 6)
         layout.setSpacing(8)
+
         self.btn_json = QPushButton(self)
-        self.btn_api = QPushButton(self)
         self.btn_json.setObjectName("btn_outboundJson")
-        self.btn_api.setObjectName("btn_outboundApi")
-        for button in (self.btn_json, self.btn_api):
-            button.setCheckable(True)
+        self.btn_json.setCheckable(True)
+        self.btn_json.setCursor(Qt.PointingHandCursor)
+        self.btn_json.setMinimumHeight(40)
+        self.btn_json.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self._bold(self.btn_json, 15)
+        layout.addWidget(self.btn_json)
+
+        self.label_write_status = QLabel(self)
+        self.label_write_status.setObjectName("label_outboundWriteStatus")
+        self.label_write_status.setWordWrap(True)
+        layout.addWidget(self.label_write_status)
+
+        self.btn_copy_path = QPushButton(self)
+        self.btn_copy_sample = QPushButton(self)
+        self.btn_open_folder = QPushButton(self)
+        for name, button in (
+            ("btn_outboundCopyPath", self.btn_copy_path),
+            ("btn_outboundCopySample", self.btn_copy_sample),
+            ("btn_outboundOpenFolder", self.btn_open_folder),
+        ):
+            button.setObjectName(name)
             button.setCursor(Qt.PointingHandCursor)
-            button.setMinimumHeight(56)
+            button.setMinimumHeight(32)
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            font = button.font()
-            font.setBold(True)
-            if font.pointSize() > 0:
-                font.setPointSize(min(font.pointSize() + 1, 16))
-            button.setFont(font)
-            layout.addWidget(button, 1)
+            layout.addWidget(button)
+        self.btn_copy_path.clicked.connect(self._copy_path)
+        self.btn_copy_sample.clicked.connect(self._copy_sample)
+        self.btn_open_folder.clicked.connect(self._open_folder)
+
+        self.label_fixed_folder = QLabel(self)
+        self.label_fixed_folder.setObjectName("label_fixedOutputFolder")
+        self.label_fixed_folder.setWordWrap(True)
+        layout.addWidget(self.label_fixed_folder)
+
+        self.btn_api = QPushButton(self)
+        self.btn_api.setObjectName("btn_outboundApi")
+        self.btn_api.setCheckable(True)
+        self.btn_api.setCursor(Qt.PointingHandCursor)
+        self.btn_api.setMinimumHeight(36)
+        self.btn_api.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self._bold(self.btn_api, 13)
+        layout.addWidget(self.btn_api)
+
+        self.btn_more = QPushButton(self)
+        self.btn_more.setObjectName("btn_moreOutputs")
+        self.btn_more.setCheckable(True)
+        self.btn_more.setCursor(Qt.PointingHandCursor)
+        self.btn_more.setFlat(True)
+        self.btn_more.setStyleSheet(
+            "text-align: left; color: #8b939e; font-weight: 600;"
+        )
+        layout.addWidget(self.btn_more)
+
         self.btn_json.clicked.connect(lambda: self._choose(JSON_PATH))
-        self.btn_api.clicked.connect(lambda: self._choose(API_PATH))
+        self.btn_api.clicked.connect(self._on_api_clicked)
+        self.btn_more.clicked.connect(self._on_more_clicked)
         self.apply_texts(True)
+
+    @staticmethod
+    def _bold(button: QPushButton, point_size: int) -> None:
+        font = button.font()
+        font.setBold(True)
+        if font.pointSize() > 0:
+            font.setPointSize(min(max(font.pointSize(), point_size), 16))
+        button.setFont(font)
+
+    def _guide(self):
+        return getattr(self.window(), "vmixOutboundGuide", None)
+
+    def _copy_path(self) -> None:
+        guide = self._guide()
+        if guide is not None:
+            guide.copy_json_path()
+
+    def _copy_sample(self) -> None:
+        guide = self._guide()
+        if guide is not None:
+            guide.copy_sample_json()
+
+    def _open_folder(self) -> None:
+        guide = self._guide()
+        if guide is not None:
+            guide.open_folder()
+
+    def _on_api_clicked(self) -> None:
+        if self._guard:
+            return
+        if self.btn_api.isChecked():
+            self._choose(API_PATH)
+        else:
+            self._choose(JSON_PATH)
+
+    def _on_more_clicked(self) -> None:
+        self.more_toggled.emit(self.btn_more.isChecked())
+        self.apply_texts(self._zh)
+
+    def set_more_open(self, open_: bool) -> None:
+        self.btn_more.setChecked(bool(open_))
+        self.apply_texts(self._zh)
+
+    def set_write_status(self, text: str) -> None:
+        self.label_write_status.setText(text)
 
     def _choose(self, path: str) -> None:
         if self._guard:
@@ -531,6 +659,7 @@ class OutboundPathChooser(QWidget):
 
     def set_path(self, path: str | None) -> None:
         self._guard = True
+        self._path = path
         try:
             self.btn_json.setChecked(path == JSON_PATH)
             self.btn_api.setChecked(path == API_PATH)
@@ -541,36 +670,57 @@ class OutboundPathChooser(QWidget):
     def apply_texts(self, zh: bool) -> None:
         self._zh = zh
         if zh:
-            self.btn_json.setText("JSON → vMix 数据源\n推荐")
-            self.btn_api.setText("进阶：vMix API\n扫描标题字段")
+            self.btn_json.setText("JSON → vMix 数据源")
             self.btn_json.setToolTip(
-                "推荐。写一个 results.json 到桌面「光为OCR输出」，"
-                "vMix 用 Data Sources → JSON 来读。"
-                "点这里打开步骤，并勾选「给 vMix 的 JSON」。"
+                "写 results.json 到桌面「光为OCR输出」，"
+                "并勾选「给 vMix 的 JSON」。"
+                "vMix → Data Sources → JSON，Update 填 100 毫秒。"
+            )
+            api_open = self.btn_api.isChecked()
+            self.btn_api.setText(
+                "▾ vMix API（SetText）" if api_open else "▸ vMix API（SetText）"
             )
             self.btn_api.setToolTip(
-                "可选。标题已经做好、想直接改标题文字时再用。"
-                "点这里去填主机、扫描标题字段、核对映射。"
+                "进阶。展开后扫描标题字段，下拉可手改映射。日常请用上面的 JSON。"
             )
+            self.btn_copy_path.setText("复制 JSON 路径")
+            self.btn_copy_sample.setText("复制示例 JSON")
+            self.btn_open_folder.setText("打开输出文件夹")
+            self.label_fixed_folder.setText("自动保存到桌面「光为OCR输出」")
+            more = self.btn_more.isChecked()
+            self.btn_more.setText("▾ 更多输出" if more else "▸ 更多输出")
+            self.btn_more.setToolTip("OBS、UNO、HTTP、逐文件 txt 等。默认折叠。")
         else:
-            self.btn_json.setText("JSON → vMix Data Sources\nRecommended")
-            self.btn_api.setText("Advanced: vMix API\nScan title fields")
+            self.btn_json.setText("JSON → vMix data source")
             self.btn_json.setToolTip(
-                "Recommended. Write results.json and open the copy-path steps."
+                "Write results.json to Desktop\\光为OCR输出 and tick JSON for vMix."
+            )
+            api_open = self.btn_api.isChecked()
+            self.btn_api.setText(
+                "▾ vMix API (SetText)" if api_open else "▸ vMix API (SetText)"
             )
             self.btn_api.setToolTip(
-                "Optional. Scan a vMix title and map fields with the Web API."
+                "Advanced. Scan title fields and edit the mapping dropdowns."
             )
+            self.btn_copy_path.setText("Copy JSON path")
+            self.btn_copy_sample.setText("Copy sample JSON")
+            self.btn_open_folder.setText("Open output folder")
+            self.label_fixed_folder.setText('Saves to Desktop "光为OCR输出"')
+            more = self.btn_more.isChecked()
+            self.btn_more.setText("▾ More outputs" if more else "▸ More outputs")
+            self.btn_more.setToolTip("OBS, UNO, HTTP and per-field txt. Folded.")
         self.apply_style()
 
     def apply_style(self) -> None:
-        dark = is_dark(self.palette())
-        self.btn_json.setStyleSheet(
-            _outbound_button_qss("json", self.btn_json.isChecked(), dark)
-        )
+        self.btn_json.setStyleSheet(_primary_json_qss())
         self.btn_api.setStyleSheet(
-            _outbound_button_qss("api", self.btn_api.isChecked(), dark)
+            _disclosure_qss("btn_outboundApi", self.btn_api.isChecked())
         )
+        self.btn_copy_path.setStyleSheet(_ghost_qss("btn_outboundCopyPath"))
+        self.btn_copy_sample.setStyleSheet(_ghost_qss("btn_outboundCopySample"))
+        self.btn_open_folder.setStyleSheet(_ghost_qss("btn_outboundOpenFolder"))
+        self.label_fixed_folder.setStyleSheet("color: #8b939e;")
+        self.label_write_status.setStyleSheet("color: #3d9a6a;")
 
     def sync_from_page(self, page) -> None:
         name = "" if page is None else page.objectName()

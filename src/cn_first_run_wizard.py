@@ -1,9 +1,9 @@
-"""光为 OCR：强制分步首次向导（第1/2/3/4步，必须点完）。
+"""光为 OCR：分步首次向导（第1/2/3/4步，可跳过）。
 
 接入：
 - MainWindow.__init__ 末尾在 setupViewer 之后调用 maybe_show_cn_first_run_wizard(self)
 - 仅 zh 语言且 scoresight.json 无 cn_wizard_seen 时弹出
-- 用户走完最后一步「完成」才写入 cn_wizard_seen=True；中途不能叉掉跳过
+- 「完成」或「跳过」都写入 cn_wizard_seen=True，结束后不再盖欢迎卡
 """
 
 from __future__ import annotations
@@ -44,18 +44,16 @@ class _StepPage(QWizardPage):
 
 
 class CnFirstRunWizard(QWizard):
-    """Forced step-by-step Chinese onboarding (no skip, no Esc dismiss)."""
+    """Chinese onboarding. Skip and close are allowed."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(_tr("{app} — 使用向导").format(app=APP_DISPLAY_NAME))
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
-        self.setOption(QWizard.WizardOption.NoCancelButton, True)
+        self.setOption(QWizard.WizardOption.NoCancelButton, False)
         self.setOption(QWizard.WizardOption.NoBackButtonOnStartPage, True)
         self.setMinimumWidth(560)
         self.setMinimumHeight(420)
-        # Remove window close button where possible
-        self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
 
         pages = [
             (
@@ -117,7 +115,7 @@ class CnFirstRunWizard(QWizard):
                     "<p>标题已经做好、想直接改文字时，再点橙色 "
                     "<b>进阶：vMix API</b>（扫描标题字段）。多数人用 JSON 就够。</p>"
                     "<p>链路：<b>摄像机 → 采集卡 → {app} → JSON → vMix</b></p>"
-                    "<p>点「完成」进入软件。向导只在首次强制走一遍。</p>"
+                    "<p>点「完成」进入软件。向导可以跳过，结束后不再盖在预览上。</p>"
                 ).format(app=APP_DISPLAY_NAME),
             ),
         ]
@@ -127,8 +125,10 @@ class CnFirstRunWizard(QWizard):
         self.setButtonText(QWizard.WizardButton.NextButton, _tr("下一步"))
         self.setButtonText(QWizard.WizardButton.BackButton, _tr("上一步"))
         self.setButtonText(QWizard.WizardButton.FinishButton, _tr("完成，开始使用"))
+        self.setButtonText(QWizard.WizardButton.CancelButton, _tr("跳过"))
 
         self._finished_ok = False
+        self._skipped = False
         self.finished.connect(self._on_finished)
 
     def _on_finished(self, result: int) -> None:
@@ -136,19 +136,16 @@ class CnFirstRunWizard(QWizard):
             self._finished_ok = True
 
     def reject(self) -> None:
-        # Block Esc / reject until finished
-        if self.currentId() < self.pageIds()[-1]:
-            return
+        self._skipped = True
         super().reject()
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if not self._finished_ok and self.currentId() < self.pageIds()[-1]:
-            event.ignore()
-            return
+        if not self._finished_ok:
+            self._skipped = True
         super().closeEvent(event)
 
     def should_persist_seen(self) -> bool:
-        return self._finished_ok
+        return self._finished_ok or self._skipped
 
 
 def maybe_show_cn_first_run_wizard(main_window) -> bool:

@@ -22,6 +22,7 @@ not enabled.
 
 ### Changed
 
+- **转播工具壳。** 主窗口默认深色。左栏是源、字段、出站、设置；中间是预览；右边出站只有一个实心按钮「JSON → vMix 数据源」，其下是复制 JSON 路径、复制示例 JSON、打开输出文件夹。vMix API（SetText）和扫描标题字段在折叠里，映射仍可下拉手改。OBS、UNO、HTTP 等在「更多输出」里。字段名旁边是英文 JSON 键。水平翻转和垂直翻转留在预览工具条上。底栏有「永久免费 · 直接供给 vMix/芯象」，QQ 群 124356408 可点开加群页。没有视频源时中文界面只留一行「选择视频源」。首次向导可以跳过。输出仍写到桌面「光为OCR输出」，没有路径输入框。识别、JSON 英文字段和通道版本都没改（仍是 `2026.10.27.5`）。
 - **PP-OCR (automatic) for ordinary setups.** A new install still defaults to PP-OCR (automatic). An existing setup whose saved model is Tesseract: General Scoreboard or Tesseract: General Scoreboard Large is moved to PP-OCR (automatic) once, when the PP-OCR weights can be used, without opening the model list. Daktronics, General English, an external model and an existing PP-OCR (accurate) or (fast) choice stay as they are. Choosing Tesseract again afterwards is kept. Portable channel `2026.10.26.3`.
 
 ### Fixed
