@@ -9,10 +9,13 @@ Release tags are the bare version number (for example `0.1.0`).
 ## [Unreleased]
 
 This public repository is 光为 OCR (GuangWei OCR), a Windows portable fork of
-ScoreSight. End users download the unsigned portable zip from
+ScoreSight. End users download the portable zip from
 https://ocr.4018.cn/ . OCR model weights and Tesseract `.traineddata` are not
-in this initial tree. Code signing via SignPath Foundation is documented and
-not enabled.
+in this initial tree.
+
+`2026.11.03.1` (below) is a channel bump only: an Authenticode-signed
+portable republish of `2026.10.27.5` (same features; Certum OV). Nothing
+under this Unreleased heading is part of that zip.
 
 ### Added
 
@@ -36,6 +39,18 @@ not enabled.
 - **English clock boxes keep the colon.** A box named Time (Home Score, Away Score, Period, and the other ScoreSight English field names too) was treated as a custom number. The digit-only whitelist dropped the colon, so `12:00` was published as `1200` and the clock format never matched. Those names again use the same type and format as 比赛时间, 主队得分, and the rest.
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
 - **Game clock reaches the files while a sport is selected.** A jump from `0:00` to a live countdown was held until one time stayed still for 3 seconds, so a clock that changes every reading never went out (`results.json` stayed at `:00.0` while the field list showed the new time in green). A legal pace is accepted after those same few seconds. Removing leading zeros no longer turns `0:00.0` into `:00.0`. A bare Chinese period numeral such as 「二」is published as `2`. Portable channel `2026.10.26.4`.
+
+## [2026.11.03.1] - 2026-11-03
+
+Portable channel `2026.11.03.1`: Authenticode-signed portable republish.
+Same features as `2026.10.27.5` (including UTF-8 Chinese filenames in the
+zip). The build is signed with a Certum OV certificate. Installed copies
+on `2026.10.27.5` are offered this update when `version.json` is the same
+string. This branch does not include the later main UI shell.
+
+### Changed
+
+- **便携包 Authenticode 签名重发。** 功能与便携通道 `2026.10.27.5` 相同，没有新的界面或识别改动。用 Certum OV 证书做 Windows Authenticode 签名后重新发布。已安装的 `2026.10.27.5` 只有在网站 `version.json` 的 `version` 写成同一个 `2026.11.03.1` 时才会收到更新。
 
 ## [2026.10.27.5] - 2026-10-27
 
