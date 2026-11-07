@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFileDialog,
+    QFormLayout,
     QHeaderView,
     QInputDialog,
     QLabel,
@@ -120,6 +121,11 @@ from keyboard_shortcuts import (
 from obs_ui_handler import OBSSourcesTable
 from overlay_ui_handler import OverlayBuilder
 from plausibility_holds import PlausibilityHolds
+from shot_clock_blank import (
+    SHOT_CLOCK_BLANK_SETTING,
+    plausibility_skip_names,
+    setting_enabled,
+)
 from readings_view import (
     DENSITY_LIVE,
     DENSITY_SETUP,
@@ -760,6 +766,7 @@ class MainWindow(QMainWindow):
 
         self.styleLabels()
         self.setupLayout()
+        self._installShotClockBlankSwitch()
         self.applyRuntimeTexts()
 
         self.update_sources.connect(self.updateSources)
@@ -1358,6 +1365,7 @@ class MainWindow(QMainWindow):
         self.updateAdjustHintVisibility()
         self.applyOcrModelTexts()
         self.applyGuangweiHelpMenu()
+        self._applyShotClockBlankSwitchText()
         self._syncCopyDeviceListAction()
         self.updateFieldsHint()
         self.updateFieldActions()
@@ -1407,6 +1415,32 @@ class MainWindow(QMainWindow):
         action = self.ui.actionCheckForUpdates
         action.setText("检查更新")
         action.setStatusTip("检查光为 OCR 是否有新版本")
+
+    def _installShotClockBlankSwitch(self):
+        """One switch: a blank 24-second crop publishes 24. Default on."""
+        if getattr(self.ui, "checkBox_shotClockBlankAs24", None) is not None:
+            return
+        box = QCheckBox(self.ui.groupBox_allBoxes)
+        box.setObjectName("checkBox_shotClockBlankAs24")
+        layout = self.ui.formLayout_allBoxes
+        layout.setWidget(layout.rowCount(), QFormLayout.ItemRole.SpanningRole, box)
+        self.ui.checkBox_shotClockBlankAs24 = box
+        stored = fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING, None)
+        box.setChecked(setting_enabled(stored))
+        box.toggled.connect(
+            partial(self.globalSettingsChanged, SHOT_CLOCK_BLANK_SETTING)
+        )
+
+    def _applyShotClockBlankSwitchText(self):
+        box = getattr(self.ui, "checkBox_shotClockBlankAs24", None)
+        if box is None:
+            return
+        box.setText("24秒空白时输出24")
+        box.setToolTip(
+            "24秒灯灭、这个框里确实没有数字时，界面和 JSON、vMix 都输出 24。"
+            "只影响 24 秒。0、小数、14 等正常读数保持原样；"
+            "闪一帧、识别失败或断流不会改成 24。关掉则恢复原来的空白逻辑。"
+        )
 
     def _chinese_ui(self) -> bool:
         return str(self.currentLocale() or "").lower().startswith("zh")
@@ -2678,6 +2712,13 @@ class MainWindow(QMainWindow):
             show_check_failed_dialog(self)
 
     def _finishGwUpdateCheck(self, gw, manual: bool):
+        """Show the 光为 update dialog when the site has a newer zip.
+
+        A failed or offline check never locks the app, even if a previous
+        manifest said the update was required. Startup stays quiet; only a
+        manual 检查更新 reports the failure. Required vs optional is decided
+        inside show_gw_update_dialog from the parsed manifest.
+        """
         if gw is None or describe_check is None or describe_check(gw) == "failed":
             detail = getattr(gw, "error_detail", None) if gw is not None else None
             if detail:
@@ -5531,7 +5572,8 @@ class MainWindow(QMainWindow):
                 result.name
                 for result in results
                 if result.name in self.heldValues or is_template_field(result)
-            },
+            }
+            | plausibility_skip_names(results),
         )
         results = self.plausibilityHolds.apply(results, held_back)
         # fill in the template fields from the boxes' last good readings; a

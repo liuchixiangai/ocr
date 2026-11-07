@@ -67,15 +67,30 @@ def bump_text(text: str, new_version: str) -> str:
 
 
 def version_json_template(version: str) -> str:
+    """Print a version.json body matching the live download-site layout.
+
+    zip_url uses /downloads/ because that is what 2026.11.03.1 published.
+    mandatory / min_version are read by 2026.11.07.1+ only; older portable
+    builds ignore those keys and still require a click on 立即更新.
+    """
     return (
         "{\n"
         f'  "version": "{version}",\n'
-        '  "zip_url": "https://ocr.4018.cn/GuangWeiOCR-Portable.zip",\n'
+        '  "zip_url": "https://ocr.4018.cn/downloads/GuangWeiOCR-Portable.zip",\n'
         '  "sha256": "<zip 的 SHA-256，小写十六进制>",\n'
-        '  "notes": "",\n'
-        '  "released_at": ""\n'
+        '  "notes": "必须更新：请点「立即更新」，下载完成后关闭软件。",\n'
+        f'  "released_at": "{_released_at_for(version)}",\n'
+        '  "mandatory": true,\n'
+        f'  "min_version": "{version}"\n'
         "}\n"
     )
+
+
+def _released_at_for(version: str) -> str:
+    parts = version.strip().split(".")
+    if len(parts) >= 3 and all(p.isdigit() for p in parts[:3]):
+        return f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+    return ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,6 +125,9 @@ def main(argv: list[str] | None = None) -> int:
         "\n接下来必须把同一个版本写进 https://ocr.4018.cn/version.json ，"
         "并填上刚上传的 zip 的 sha256。\n"
         "GW_RELEASE 与 version.json 的 version 相同，则已安装的用户不会收到更新。\n"
+        "不要现在把未签名 zip 的摘要写上网。2026.10.27.5 / 2026.11.03.1 "
+        "会忽略 mandatory 和 min_version，只比较 version，并且必须用户点一次"
+        "「立即更新」。\n"
     )
     print(version_json_template(version))
     return 0

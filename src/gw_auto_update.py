@@ -53,6 +53,16 @@ UA = f"GuangWeiOCR/{GW_RELEASE}"
 
 STATUS_CHECK_FAILED = "更新检查失败"
 CHECK_FAILED_TEXT = "更新检查失败。请检查网络后重试。\n\n也可打开下载站手动获取新版本。"
+UPDATE_NOW = "立即更新"
+OPTIONAL_LATER = "下次再说"
+REQUIRED_LATER = "稍后继续使用"
+QUIT_TO_APPLY = "立即退出并更新"
+DEFER_APPLY = "稍后关闭时更新"
+OPTIONAL_DOWNLOAD_HINT = "是否立即下载？下载完成后，关闭软件将自动更新并重新启动。"
+REQUIRED_DOWNLOAD_HINT = (
+    "这是必须更新。请立即下载；下载完成后关闭软件将自动更新并重新启动。"
+    "下载失败或离线时仍可继续使用当前版本，不会锁死或删除配置。"
+)
 
 
 class DownloadCancelled(Exception):
@@ -66,6 +76,9 @@ class GwReleaseInfo:
     sha256: str
     notes: str
     released_at: str
+    # 2026.11.07.1+ clients honor these. 2026.10.27.5 / 2026.11.03.1 ignore them.
+    mandatory: bool = False
+    min_version: str = ""
 
 
 @dataclass
@@ -79,6 +92,9 @@ class GwUpdateResult:
     error_detail: str | None = None
     # set after a successful background download
     staged_dir: str | None = None
+    # True only when this client will treat the update as required. Failed
+    # checks stay False so offline use is never locked.
+    required: bool = False
 
 
 class CancelToken:
@@ -198,8 +214,26 @@ def _valid_sha256(text: str) -> bool:
     return len(sha) == 64 and all(c in "0123456789abcdef" for c in sha)
 
 
+def _flag_true(value) -> bool:
+    """JSON booleans, 1, and a short list of words. Anything else is false."""
+    if value is True:
+        return True
+    if value is False or value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value == 1
+    text = str(value).strip().lower()
+    return text in {"1", "true", "yes", "on", "mandatory", "required", "force"}
+
+
 def parse_version_payload(data) -> GwReleaseInfo:
-    """Validate one version.json object. Raises ValueError when it can't be used."""
+    """Validate one version.json object. Raises ValueError when it can't be used.
+
+    Required keys are still only version, zip_url, and a 64-hex sha256 — the
+    same contract as 2026.10.27.5 / 2026.11.03.1. Extra keys are ignored by
+    those builds (they never raise on unknown fields). This build additionally
+    reads optional mandatory / force and min_version / minimum_version.
+    """
     if not isinstance(data, dict):
         raise ValueError("version.json 不是对象")
     version = str(data.get("version") or "").strip()
@@ -211,13 +245,38 @@ def parse_version_payload(data) -> GwReleaseInfo:
         raise ValueError("zip_url 无效")
     if not _valid_sha256(sha):
         raise ValueError("version.json 缺少有效的 sha256")
+    mandatory = _flag_true(data.get("mandatory")) or _flag_true(data.get("force"))
+    min_version = str(
+        data.get("min_version") or data.get("minimum_version") or ""
+    ).strip()
     return GwReleaseInfo(
         version=version,
         zip_url=zip_url,
         sha256=sha,
         notes=str(data.get("notes") or ""),
         released_at=str(data.get("released_at") or ""),
+        mandatory=mandatory,
+        min_version=min_version,
     )
+
+
+def update_is_required(info: GwReleaseInfo | None, current: str) -> bool:
+    """Whether *this* client should treat a newer site version as mandatory.
+
+    Returns False when there is no newer version, so a client whose
+    GW_RELEASE matches the site never locks itself. 2026.10.27.5 and
+    2026.11.03.1 do not call this function; putting mandatory in version.json
+    does not change their Yes/No dialog.
+    """
+    if info is None:
+        return False
+    if not is_newer(info.version, current):
+        return False
+    if info.mandatory:
+        return True
+    if info.min_version and is_newer(info.min_version, current):
+        return True
+    return False
 
 
 def _http_get(url, **kwargs):
@@ -321,15 +380,18 @@ def check_gw_update() -> GwUpdateResult:
             info.version,
         )
         return GwUpdateResult(current=current, latest=info.version, info=info)
+    required = update_is_required(info, current)
     logger.info(
-        "GW update check: installed %s, site %s, update available",
+        "GW update check: installed %s, site %s, update available%s",
         current,
         info.version,
+        ", required" if required else "",
     )
     return GwUpdateResult(
         current=current,
         latest=info.version,
         update_available=True,
+        required=required,
         info=info,
     )
 
@@ -502,6 +564,37 @@ def _extract_payload(
     return final
 
 
+def staged_payload_for(info: GwReleaseInfo) -> Path | None:
+    """Return a previously verified payload if it still matches this manifest.
+
+    A required update that already downloaded must not download again on the
+    next startup. Mismatched version/sha256 or a payload without an exe is
+    ignored; the caller may download a fresh copy. This never deletes the
+    install directory or user config.
+    """
+    if info is None or not _valid_sha256(info.sha256 or ""):
+        return None
+    stage = _portable_root() / STAGE_DIR_NAME
+    ready = stage / "READY.txt"
+    payload = stage / "payload"
+    if not ready.is_file() or not payload.is_dir():
+        return None
+    try:
+        data = json.loads(ready.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if str(data.get("version") or "").strip() != info.version:
+        return None
+    if str(data.get("sha256") or "").strip().lower() != info.sha256.lower():
+        return None
+    if (
+        not (payload / "GuangWeiOCR.exe").is_file()
+        and not (payload / "scoresight.exe").is_file()
+    ):
+        return None
+    return payload
+
+
 def download_and_stage(
     info: GwReleaseInfo,
     progress: Callable[[int, int], None] | None = None,
@@ -639,10 +732,23 @@ def _apply_bat_lines(
         "timeout /t 3 /nobreak >nul",
         ":do_copy",
         "echo 正在复制新文件...",
-        'robocopy "%SRC%" "%DST%" /E /R:8 /W:2 /XJ /NFL /NDL /NP '
-        '/XD "_gw_update_stage" /XF "apply_gw_update.bat" '
-        '/LOG:"%DST%\\_gw_update_robocopy.log"',
+        (
+            'if exist "%DST%\\GuangWeiOCR.exe" copy /y "%DST%\\GuangWeiOCR.exe" '
+            '"%DST%\\GuangWeiOCR.exe.pre_update" >nul 2>&1'
+        ),
+        (
+            'if exist "%DST%\\scoresight.exe" copy /y "%DST%\\scoresight.exe" '
+            '"%DST%\\scoresight.exe.pre_update" >nul 2>&1'
+        ),
+        (
+            'robocopy "%SRC%" "%DST%" /E /R:8 /W:2 /XJ /NFL /NDL /NP '
+            '/XD "_gw_update_stage" /XF "apply_gw_update.bat" '
+            '"GuangWeiOCR.exe.pre_update" "scoresight.exe.pre_update" '
+            '/LOG:"%DST%\\_gw_update_robocopy.log"'
+        ),
         "if errorlevel 8 goto copy_fail",
+        'del /q "%DST%\\GuangWeiOCR.exe.pre_update" >nul 2>&1',
+        'del /q "%DST%\\scoresight.exe.pre_update" >nul 2>&1',
         'set "EXE=%DST%\\GuangWeiOCR.exe"',
         'if not exist "%EXE%" set "EXE=%DST%\\scoresight.exe"',
         'if not exist "%EXE%" goto no_exe',
@@ -655,8 +761,17 @@ def _apply_bat_lines(
         ":copy_fail",
         "echo.",
         "echo 复制更新文件失败。可能是文件被占用，或被安全软件拦截。",
+        "echo 已尝试恢复更新前的程序文件。配置不会被删除。",
         "echo 请从下载站手动下载，解压后覆盖本目录。",
         "echo 复制日志：%DST%\\_gw_update_robocopy.log",
+        (
+            'if exist "%DST%\\GuangWeiOCR.exe.pre_update" copy /y '
+            '"%DST%\\GuangWeiOCR.exe.pre_update" "%DST%\\GuangWeiOCR.exe" >nul 2>&1'
+        ),
+        (
+            'if exist "%DST%\\scoresight.exe.pre_update" copy /y '
+            '"%DST%\\scoresight.exe.pre_update" "%DST%\\scoresight.exe" >nul 2>&1'
+        ),
         'start "" "%PAGE%"',
         'if exist "%DST%\\GuangWeiOCR.exe" start "" "%DST%\\GuangWeiOCR.exe"',
         'if not exist "%DST%\\GuangWeiOCR.exe" '
@@ -761,12 +876,12 @@ def open_download_page() -> bool:
         return False
 
 
-def _ask(parent, text: str, yes: str, no: str) -> bool:
+def _ask(parent, text: str, yes: str, no: str, *, warning: bool = False) -> bool:
     from PySide6.QtWidgets import QMessageBox
 
     box = QMessageBox(parent)
     box.setWindowTitle("光为 OCR 更新")
-    box.setIcon(QMessageBox.Icon.Information)
+    box.setIcon(QMessageBox.Icon.Warning if warning else QMessageBox.Icon.Information)
     box.setText(text)
     box.setStandardButtons(
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -774,6 +889,33 @@ def _ask(parent, text: str, yes: str, no: str) -> bool:
     box.button(QMessageBox.StandardButton.Yes).setText(yes)
     box.button(QMessageBox.StandardButton.No).setText(no)
     return box.exec() == QMessageBox.StandardButton.Yes
+
+
+def _quit_to_apply(parent) -> None:
+    """Close the window so the existing quit hook can run the apply bat.
+
+    Does not taskkill, does not delete config, and does not skip OS file
+    permissions. close_without_asking avoids the 'ask before closing' prompt
+    that would cancel an already-scheduled apply.
+    """
+    if parent is not None and hasattr(parent, "close_without_asking"):
+        try:
+            parent.close_without_asking = True
+        except Exception:
+            pass
+    closer = getattr(parent, "close", None) if parent is not None else None
+    if closer is not None:
+        try:
+            closer()
+            return
+        except Exception:
+            pass
+    app = _qt_app()
+    if app is not None:
+        try:
+            app.quit()
+        except Exception:
+            pass
 
 
 def show_up_to_date_dialog(parent, version: str) -> None:
@@ -801,7 +943,15 @@ def show_check_failed_dialog(parent) -> bool:
     return False
 
 
-def _warn_download_failed(parent, exc: BaseException) -> None:
+def _warn_download_failed(
+    parent, exc: BaseException, *, can_retry: bool = False
+) -> str:
+    """Tell the user the zip was not installed. Returns retry / page / close.
+
+    A SHA-256 mismatch never copies over the running tree. Retry does not
+    bypass OS permissions. Close (or 继续使用) leaves the current install
+    runnable — required updates must not lock the operator out.
+    """
     from PySide6.QtWidgets import QMessageBox
 
     message = str(exc)
@@ -809,17 +959,34 @@ def _warn_download_failed(parent, exc: BaseException) -> None:
         text = "下载未通过 SHA-256 校验，安装已取消。\n\n请重试，或打开下载站手动获取。"
     else:
         text = f"下载失败：{exc}\n\n也可打开下载站手动获取。"
+    if can_retry:
+        text += "\n当前版本仍可继续使用，不会锁死。"
     box = QMessageBox(parent)
     box.setWindowTitle("光为 OCR 更新")
     box.setIcon(QMessageBox.Icon.Warning)
     box.setText(text)
-    box.setStandardButtons(
-        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-    )
-    box.button(QMessageBox.StandardButton.Yes).setText("打开下载站")
-    box.button(QMessageBox.StandardButton.No).setText("关闭")
-    if box.exec() == QMessageBox.StandardButton.Yes:
+    if can_retry:
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Retry
+            | QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+        )
+        box.button(QMessageBox.StandardButton.Retry).setText("重试")
+        box.button(QMessageBox.StandardButton.Yes).setText("打开下载站")
+        box.button(QMessageBox.StandardButton.No).setText("继续使用")
+    else:
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        box.button(QMessageBox.StandardButton.Yes).setText("打开下载站")
+        box.button(QMessageBox.StandardButton.No).setText("关闭")
+    choice = box.exec()
+    if can_retry and choice == QMessageBox.StandardButton.Retry:
+        return "retry"
+    if choice == QMessageBox.StandardButton.Yes:
         open_download_page()
+        return "page"
+    return "close"
 
 
 def _download_with_progress(parent, info: GwReleaseInfo) -> Path | None:
@@ -912,28 +1079,77 @@ def show_update_dialog(parent, result: GwUpdateResult) -> bool:
 
     Portable+frozen: download and stage, apply on quit.
     Source/dev: open the download page only (do not overwrite the source tree).
+
+    Required updates (this client only) still need a click to download the
+    zip. Declining, cancelling, failing, or being offline leaves the current
+    install usable. 2026.10.27.5 / 2026.11.03.1 always use 立即更新 / 下次再说
+    and never read result.required.
     """
     from PySide6.QtWidgets import QMessageBox
 
     info = result.info
     if info is None:
         return False
+    required = bool(result.required) or update_is_required(info, result.current)
     notes = (info.notes or "").strip()
     if len(notes) > 400:
         notes = notes[:400] + "…"
-    body = f"发现新版本 {info.version}（当前 {result.current}）。\n\n"
+    if required:
+        body = f"必须更新到 {info.version}（当前 {result.current}）。\n\n"
+    else:
+        body = f"发现新版本 {info.version}（当前 {result.current}）。\n\n"
     if notes:
         body += notes + "\n\n"
     if is_frozen_portable():
-        body += "是否立即下载？下载完成后，关闭软件将自动更新并重新启动。"
-        if not _ask(parent, body, "立即更新", "下次再说"):
+        staged = staged_payload_for(info)
+        later = REQUIRED_LATER if required else OPTIONAL_LATER
+        if staged is not None:
+            body += "更新包已下载并校验。关闭软件将自动完成更新并重新启动。"
+            if required:
+                body += "现在也可以稍后关闭；离线时当前版本仍可使用，不会锁死。"
+            if not _ask(
+                parent,
+                body,
+                QUIT_TO_APPLY if required else UPDATE_NOW,
+                later,
+                warning=required,
+            ):
+                if required:
+                    try:
+                        schedule_apply_on_quit(staged)
+                    except Exception:
+                        logger.exception("GW update: could not keep staged apply hook")
+                return False
+            try:
+                schedule_apply_on_quit(staged)
+            except Exception as exc:
+                QMessageBox.warning(parent, "光为 OCR 更新", f"更新失败：{exc}")
+                return False
+            if required:
+                _quit_to_apply(parent)
+            else:
+                QMessageBox.information(
+                    parent,
+                    "光为 OCR 更新",
+                    "更新包已就绪。请关闭本软件，将自动完成更新并重新启动。",
+                )
+            return True
+        body += REQUIRED_DOWNLOAD_HINT if required else OPTIONAL_DOWNLOAD_HINT
+        if not _ask(parent, body, UPDATE_NOW, later, warning=required):
             return False
-        try:
-            payload = _download_with_progress(parent, info)
-        except Exception as exc:
-            logger.exception("GW update download failed")
-            _warn_download_failed(parent, exc)
-            return False
+        payload = None
+        while True:
+            try:
+                payload = staged_payload_for(info) or _download_with_progress(
+                    parent, info
+                )
+            except Exception as exc:
+                logger.exception("GW update download failed")
+                action = _warn_download_failed(parent, exc, can_retry=required)
+                if action == "retry":
+                    continue
+                return False
+            break
         if payload is None:
             return False
         try:
@@ -941,6 +1157,17 @@ def show_update_dialog(parent, result: GwUpdateResult) -> bool:
         except Exception as exc:
             QMessageBox.warning(parent, "光为 OCR 更新", f"更新失败：{exc}")
             return False
+        if required:
+            if _ask(
+                parent,
+                "更新包已就绪。现在关闭软件以完成必须更新并重新启动？"
+                "也可稍后关闭；当前版本在那之前仍可使用。",
+                QUIT_TO_APPLY,
+                DEFER_APPLY,
+                warning=True,
+            ):
+                _quit_to_apply(parent)
+            return True
         QMessageBox.information(
             parent,
             "光为 OCR 更新",
@@ -948,7 +1175,7 @@ def show_update_dialog(parent, result: GwUpdateResult) -> bool:
         )
         return True
     body += "当前为开发版运行，不会覆盖源码。是否打开下载站？"
-    if not _ask(parent, body, "打开下载站", "关闭"):
+    if not _ask(parent, body, "打开下载站", "关闭", warning=required):
         return False
     open_download_page()
     return True

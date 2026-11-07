@@ -2,6 +2,7 @@
 
 import hashlib
 import io
+import json
 import zipfile
 from pathlib import Path
 
@@ -12,6 +13,10 @@ import gw_auto_update
 from gw_auto_update import (
     CHECK_FAILED_TEXT,
     DOWNLOAD_ATTEMPTS,
+    OPTIONAL_LATER,
+    QUIT_TO_APPLY,
+    REQUIRED_LATER,
+    UPDATE_NOW,
     VERSION_FETCH_ATTEMPTS,
     CancelToken,
     DownloadCancelled,
@@ -29,7 +34,9 @@ from gw_auto_update import (
     show_check_failed_dialog,
     show_up_to_date_dialog,
     show_update_dialog,
+    staged_payload_for,
     up_to_date_text,
+    update_is_required,
     write_apply_bat,
 )
 from product_brand import (
@@ -167,8 +174,9 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     channel window title are 2026.10.27.3; the two-button Output chooser
     (JSON recommended, advanced vMix API) is 2026.10.27.4; UTF-8 portable
     zip filenames are 2026.10.27.5; the Authenticode-signed republish of
-    those same features (Certum OV) is 2026.11.03.1."""
-    assert GW_RELEASE == "2026.11.03.1"
+    those same features (Certum OV) is 2026.11.03.1; 24-second blank-as-24
+    plus the mandatory-update protocol for this client is 2026.11.07.1."""
+    assert GW_RELEASE == "2026.11.07.1"
     assert is_newer(GW_RELEASE, "2026.10.26.1")
     assert is_newer(GW_RELEASE, "2026.10.26.2")
     assert is_newer(GW_RELEASE, "2026.10.26.3")
@@ -180,7 +188,8 @@ def test_shipped_channel_is_newer_than_the_flip_portable():
     assert is_newer(GW_RELEASE, "2026.10.27.3")
     assert is_newer(GW_RELEASE, "2026.10.27.4")
     assert is_newer(GW_RELEASE, "2026.10.27.5")
-    assert not is_newer("2026.10.27.5", GW_RELEASE)
+    assert is_newer(GW_RELEASE, "2026.11.03.1")
+    assert not is_newer("2026.11.03.1", GW_RELEASE)
     assert not is_newer(GW_RELEASE, GW_RELEASE)
 
 
@@ -363,6 +372,120 @@ def test_parse_rejects_incomplete_manifests(payload):
         parse_version_payload(payload)
 
 
+# Live 2026.11.03.1 version.json fetched 2026-11-07 from ocr.4018.cn.
+# No mandatory / min_version keys. zip_url is under /downloads/.
+LIVE_2026_11_03_1 = {
+    "version": "2026.11.03.1",
+    "zip_url": "https://ocr.4018.cn/downloads/GuangWeiOCR-Portable.zip",
+    "sha256": "0a1da0015c098ac97f1533749356e9b18aa6098a94ec53ccb9a57b29ee46658d",
+    "notes": (
+        "Release 2026.11.03.1 — Authenticode（Certum OV）；"
+        "与 2026.10.27.5 同功能，抬通道供自动更新。"
+    ),
+    "released_at": "2026-11-03T19:52:49+08:00",
+}
+
+
+def parse_like_shipped_2026_11_03_1(data):
+    """Byte-equivalent of parse_version_payload in a1be0fd and 2ccb5aa.
+
+    Those builds (portable 2026.10.27.5 and 2026.11.03.1) never read
+    mandatory or min_version. Extra JSON keys are ignored, not rejected.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("version.json 不是对象")
+    version = str(data.get("version") or "").strip()
+    zip_url = str(data.get("zip_url") or "").strip()
+    sha = str(data.get("sha256") or "").strip().lower()
+    if not version or not zip_url:
+        raise ValueError("version.json 缺少 version 或 zip_url")
+    if not zip_url.lower().startswith(("https://", "http://")):
+        raise ValueError("zip_url 无效")
+    if not (len(sha) == 64 and all(c in "0123456789abcdef" for c in sha)):
+        raise ValueError("version.json 缺少有效的 sha256")
+    return {
+        "version": version,
+        "zip_url": zip_url,
+        "sha256": sha,
+        "notes": str(data.get("notes") or ""),
+        "released_at": str(data.get("released_at") or ""),
+    }
+
+
+def test_live_2026_11_03_1_manifest_has_no_force_fields():
+    assert "mandatory" not in LIVE_2026_11_03_1
+    assert "min_version" not in LIVE_2026_11_03_1
+    assert "force" not in LIVE_2026_11_03_1
+    old = parse_like_shipped_2026_11_03_1(LIVE_2026_11_03_1)
+    info = parse_version_payload(LIVE_2026_11_03_1)
+    assert old["version"] == info.version == "2026.11.03.1"
+    assert info.mandatory is False
+    assert info.min_version == ""
+    assert not update_is_required(info, "2026.10.27.5")
+
+
+def test_shipped_parser_ignores_mandatory_and_min_version():
+    payload = manifest(
+        version="2026.11.07.1",
+        mandatory=True,
+        min_version="2026.11.07.1",
+        force=True,
+        future_field="ignored",
+    )
+    old = parse_like_shipped_2026_11_03_1(payload)
+    assert old["version"] == "2026.11.07.1"
+    assert "mandatory" not in old
+    assert "min_version" not in old
+    assert "force" not in old
+    info = parse_version_payload(payload)
+    assert info.mandatory is True
+    assert info.min_version == "2026.11.07.1"
+    assert update_is_required(info, "2026.10.27.5")
+    assert update_is_required(info, "2026.11.03.1")
+    assert not update_is_required(info, "2026.11.07.1")
+
+
+def test_min_version_requires_only_older_clients():
+    info = parse_version_payload(
+        manifest(version="2026.11.08.1", min_version="2026.11.07.1")
+    )
+    assert info.mandatory is False
+    assert update_is_required(info, "2026.11.03.1")
+    assert not update_is_required(info, "2026.11.07.1")
+    assert not update_is_required(info, "2026.11.08.1")
+    optional = parse_version_payload(manifest(version="2026.11.07.1"))
+    assert not update_is_required(optional, "2026.10.27.5")
+
+
+def test_check_marks_required_only_when_site_is_newer(monkeypatch):
+    monkeypatch.setattr(gw_auto_update, "GW_RELEASE", "2026.11.03.1")
+    required_info = parse_version_payload(
+        manifest(version="2026.11.07.1", mandatory=True, min_version="2026.11.07.1")
+    )
+    monkeypatch.setattr(
+        gw_auto_update, "fetch_version_json", lambda: (required_info, None, None)
+    )
+    result = check_gw_update()
+    assert result.update_available
+    assert result.required
+    same = parse_version_payload(
+        manifest(version="2026.11.03.1", mandatory=True, min_version="2026.11.07.1")
+    )
+    monkeypatch.setattr(
+        gw_auto_update, "fetch_version_json", lambda: (same, None, None)
+    )
+    stuck = check_gw_update()
+    assert not stuck.update_available
+    assert not stuck.required
+    monkeypatch.setattr(
+        gw_auto_update, "fetch_version_json", lambda: (None, "network", "offline")
+    )
+    offline = check_gw_update()
+    assert describe_check(offline) == "failed"
+    assert not offline.required
+    assert not offline.update_available
+
+
 # --- download -----------------------------------------------------------------
 
 
@@ -518,12 +641,21 @@ def test_apply_bat_waits_kills_and_reports_copy_failure(portable):
     assert "/XO" not in text
     assert "if errorlevel 8 goto copy_fail" in text
     assert "复制更新文件失败" in text
+    assert "配置不会被删除" in text
+    assert "GuangWeiOCR.exe.pre_update" in text
+    assert "scoresight.exe.pre_update" in text
+    assert (
+        'copy /y "%DST%\\GuangWeiOCR.exe" "%DST%\\GuangWeiOCR.exe.pre_update"' in text
+    )
     assert "未找到 GuangWeiOCR.exe" in text
     assert "GuangWeiOCR.exe" in text
     assert "scoresight.exe" in text
     assert GW_DOWNLOAD_PAGE in text
     assert str(payload) in text
     assert "\r\n" in text
+    compact = text.replace(" ", "")
+    assert 'rmdir/s/q"%DST%"' not in compact
+    assert 'rmdir/s/q"%STAGE%"' in compact
 
 
 def test_apply_hook_is_registered_once(portable):
@@ -721,6 +853,182 @@ def test_frozen_dialog_reports_sha_failure_and_cancel(qapp, monkeypatch):
     assert not any("下载失败" in text for text in texts[before:])
 
 
+@pytest.mark.qt
+def test_required_dialog_decline_does_not_download_or_lock(qapp, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox, QWidget
+
+    monkeypatch.setattr(gw_auto_update, "is_frozen_portable", lambda: True)
+    downloaded = []
+    monkeypatch.setattr(
+        gw_auto_update,
+        "download_and_stage",
+        lambda *_a, **_k: downloaded.append(1),
+    )
+    texts = []
+    buttons = []
+
+    def fake_exec(self):
+        texts.append(self.text())
+        buttons.append(
+            (
+                self.button(QMessageBox.StandardButton.Yes).text(),
+                self.button(QMessageBox.StandardButton.No).text(),
+            )
+        )
+        return QMessageBox.StandardButton.No
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    info = parse_version_payload(
+        manifest(version="2026.11.07.1", mandatory=True, notes="24秒灯灭")
+    )
+    result = GwUpdateResult(
+        current="2026.11.03.1",
+        latest=info.version,
+        update_available=True,
+        required=True,
+        info=info,
+    )
+    assert show_update_dialog(QWidget(), result) is False
+    assert downloaded == []
+    assert "必须更新到 2026.11.07.1" in texts[0]
+    assert "24秒灯灭" in texts[0]
+    assert OPTIONAL_LATER not in texts[0]
+    assert buttons[0] == (UPDATE_NOW, REQUIRED_LATER)
+
+
+@pytest.mark.qt
+def test_required_update_retries_after_sha_failure(qapp, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox, QWidget
+
+    monkeypatch.setattr(gw_auto_update, "is_frozen_portable", lambda: True)
+    payload = tmp_path / "payload"
+    payload.mkdir()
+    (payload / "GuangWeiOCR.exe").write_bytes(b"MZ")
+    calls = {"n": 0}
+
+    def download(*_a, **_k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("SHA-256 校验失败（得到 aa，期望 bb）")
+        return payload
+
+    monkeypatch.setattr(gw_auto_update, "download_and_stage", download)
+    scheduled = []
+    monkeypatch.setattr(
+        gw_auto_update,
+        "schedule_apply_on_quit",
+        lambda path, **_k: scheduled.append(path) or path,
+    )
+    closed = []
+    monkeypatch.setattr(gw_auto_update, "_quit_to_apply", closed.append)
+    texts = []
+
+    def fake_exec(self):
+        texts.append(self.text())
+        if "SHA-256" in self.text():
+            return QMessageBox.StandardButton.Retry
+        if "已就绪" in self.text():
+            return QMessageBox.StandardButton.No
+        if "必须更新到" in self.text():
+            return QMessageBox.StandardButton.Yes
+        return QMessageBox.StandardButton.No
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    info = parse_version_payload(manifest(version="2026.11.07.1", mandatory=True))
+    result = GwUpdateResult(
+        current="2026.11.03.1",
+        latest=info.version,
+        update_available=True,
+        required=True,
+        info=info,
+    )
+    assert show_update_dialog(QWidget(), result) is True
+    assert calls["n"] == 2
+    assert scheduled == [payload]
+    assert closed == []
+    assert any("继续使用" in text or "仍可使用" in text for text in texts)
+
+
+def test_staged_payload_is_reused_when_manifest_matches(portable, monkeypatch):
+    blob = zip_bytes({"GuangWeiOCR/GuangWeiOCR.exe": b"MZ-new"})
+    info = release_for(blob, version="2026.11.07.1")
+    monkeypatch.setattr(gw_auto_update, "_http_get", lambda *_a, **_k: FakeStream(blob))
+    payload = download_and_stage(info)
+    assert staged_payload_for(info) == payload
+    other = GwReleaseInfo(
+        version="2026.11.08.1",
+        zip_url=info.zip_url,
+        sha256=info.sha256,
+        notes="",
+        released_at="",
+    )
+    assert staged_payload_for(other) is None
+    bad_sha = GwReleaseInfo(
+        version=info.version,
+        zip_url=info.zip_url,
+        sha256="ab" * 32,
+        notes="",
+        released_at="",
+    )
+    assert staged_payload_for(bad_sha) is None
+
+
+@pytest.mark.qt
+def test_required_dialog_reuses_staged_payload(qapp, portable, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox, QWidget
+
+    monkeypatch.setattr(gw_auto_update, "is_frozen_portable", lambda: True)
+    blob = zip_bytes({"GuangWeiOCR/GuangWeiOCR.exe": b"MZ-new"})
+    info = release_for(blob, version="2026.11.07.1")
+    monkeypatch.setattr(gw_auto_update, "_http_get", lambda *_a, **_k: FakeStream(blob))
+    payload = download_and_stage(info)
+    downloaded = []
+    monkeypatch.setattr(
+        gw_auto_update,
+        "download_and_stage",
+        lambda *_a, **_k: downloaded.append(1) or payload,
+    )
+    scheduled = []
+    monkeypatch.setattr(
+        gw_auto_update,
+        "schedule_apply_on_quit",
+        lambda path, **_k: scheduled.append(path) or path,
+    )
+    closed = []
+    monkeypatch.setattr(gw_auto_update, "_quit_to_apply", closed.append)
+
+    def fake_exec(self):
+        assert "已下载" in self.text() or "已校验" in self.text()
+        assert self.button(QMessageBox.StandardButton.Yes).text() == QUIT_TO_APPLY
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    result = GwUpdateResult(
+        current="2026.11.03.1",
+        latest=info.version,
+        update_available=True,
+        required=True,
+        info=info,
+    )
+    assert show_update_dialog(QWidget(), result) is True
+    assert downloaded == []
+    assert scheduled == [payload]
+    assert len(closed) == 1
+
+
+def test_version_json_example_is_not_publishable_until_signed():
+    """The committed example must not be a valid unsigned package manifest."""
+    path = Path(__file__).resolve().parent.parent / "packaging" / "version.json.example"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["version"] == "2026.11.07.1"
+    assert data["zip_url"].startswith("https://ocr.4018.cn/downloads/")
+    assert data["mandatory"] is True
+    assert data["min_version"] == "2026.11.07.1"
+    assert "立即更新" in data["notes"]
+    with pytest.raises(ValueError, match="sha256"):
+        parse_version_payload(data)
+
+
 def test_bump_gw_release_script(tmp_path, capsys):
     import importlib.util
     import sys
@@ -742,4 +1050,9 @@ def test_bump_gw_release_script(tmp_path, capsys):
     assert module.main(["2026.10.26.1", "--file", str(brand)]) == 0
     text = brand.read_text(encoding="utf-8")
     assert text == 'GW_RELEASE = "2026.10.26.1"\n'
-    assert "version.json" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "version.json" in out
+    assert "mandatory" in out
+    assert "min_version" in out
+    assert "/downloads/GuangWeiOCR-Portable.zip" in out
+    assert "忽略 mandatory" in out

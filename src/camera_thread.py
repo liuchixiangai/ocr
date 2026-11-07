@@ -29,6 +29,12 @@ from storage import (
     subscribe_to_data,
     unsubscribe_from_data,
 )
+from shot_clock_blank import (
+    FALLBACK_EXTRA,
+    SHOT_CLOCK_BLANK_SETTING,
+    apply_shot_clock_blank,
+    setting_enabled,
+)
 from tesseract import TextDetector, global_binarization, render_binary_view
 from text_detection_target import TextDetectionTargetWithResult
 from sc_logging import logger
@@ -1553,6 +1559,12 @@ class TimerThread(QThread):
         subscribe_to_data(
             SETTINGS_FILE, "detection_cadence", self.setUpdateFrameInterval
         )
+        self.shotClockBlankAs24 = setting_enabled(
+            fetch_data(SETTINGS_FILE, SHOT_CLOCK_BLANK_SETTING, None)
+        )
+        subscribe_to_data(
+            SETTINGS_FILE, SHOT_CLOCK_BLANK_SETTING, self.setShotClockBlankAs24
+        )
         self.preview_frame_interval = PREVIEW_INTERVAL_MS
         # The viewer sets this: skip a preview whose paint is still on the GUI
         # thread, instead of queuing stale pictures behind it.
@@ -1616,6 +1628,10 @@ class TimerThread(QThread):
     def setSpeed(self, speed):
         self.speed = speed
 
+    def setShotClockBlankAs24(self, value):
+        """Follow the "24秒空白时输出24" switch. A missing value stays on."""
+        self.shotClockBlankAs24 = setting_enabled(value)
+
     def setUpdateFrameInterval(self, cadence):
         self.update_frame_interval = cadence_to_interval_ms(cadence)
 
@@ -1651,6 +1667,9 @@ class TimerThread(QThread):
         any thread."""
         unsubscribe_from_data(
             SETTINGS_FILE, "detection_cadence", self.setUpdateFrameInterval
+        )
+        unsubscribe_from_data(
+            SETTINGS_FILE, SHOT_CLOCK_BLANK_SETTING, self.setShotClockBlankAs24
         )
         self.crop.close()
 
@@ -2044,7 +2063,17 @@ class TimerThread(QThread):
         With "When blank" set (clear_value), a box that has been blank (or
         zero) for CLEAR_AFTER_SECONDS is read as an empty good reading: a
         Success "" once, then SameNoChange "" while it stays blank.
+
+        A shot clock whose crop is visually blank can instead publish "24"
+        (shot_clock_blank.py) before "When blank" runs, so the 2-second clear
+        does not replace that 24 with an empty value. One blank sample is
+        left on the normal path (Empty), which keeps the last digit.
         """
+        target.shot_clock_blank_emitted = False
+        fallback = apply_shot_clock_blank(target, result, self.shotClockBlankAs24)
+        if fallback is not None:
+            target.shot_clock_blank_emitted = True
+            return fallback
         cleared = self._cleared_reading(target, result)
         if cleared is not None:
             return cleared
@@ -2106,10 +2135,12 @@ class TimerThread(QThread):
         results = []
         for target, result in zip(targets, texts):
             text, state = self._published_reading(target, result)
+            extra = result.extra
+            if getattr(target, "shot_clock_blank_emitted", False):
+                extra = dict(extra or {})
+                extra[FALLBACK_EXTRA] = True
             results.append(
-                TextDetectionTargetWithResult(
-                    target, text, state, result.rect, result.extra
-                )
+                TextDetectionTargetWithResult(target, text, state, result.rect, extra)
             )
 
         # The GUI thread edits the results (template fields) once they are
