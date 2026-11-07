@@ -1194,6 +1194,27 @@ def test_an_imported_layout_replaces_the_placed_fields(
     assert not ui.pushButton_makeBox.isHidden()
 
 
+def test_shot_clock_blank_switch_defaults_on_and_persists(make_window):
+    from shot_clock_blank import SHOT_CLOCK_BLANK_SETTING, setting_enabled
+
+    window = make_window()
+    box = window.ui.checkBox_shotClockBlankAs24
+    assert box.text() == "24秒空白时输出24"
+    assert "24" in box.toolTip()
+    assert box.isChecked()
+    assert setting_enabled(
+        fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING, None)
+    )
+    box.setChecked(False)
+    assert fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING, None) is False
+    window.close()
+    again = make_window()
+    assert again.ui.checkBox_shotClockBlankAs24.text() == "24秒空白时输出24"
+    assert not again.ui.checkBox_shotClockBlankAs24.isChecked()
+    again.ui.checkBox_shotClockBlankAs24.setChecked(True)
+    assert fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING, None) is True
+
+
 def test_when_blank_is_stored_per_box(make_window, make_target):
     window = make_window()
     ui = window.ui

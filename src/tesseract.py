@@ -297,8 +297,21 @@ def render_binary_view(binary, gray, rects: list[TextDetectionTarget], ppocr=Fal
     return display
 
 
-def _empty_result(rect=None):
-    return TextDetectionResult("", ResultState.Empty, rect)
+def display_is_blank(patch, *, ppocr: bool) -> bool:
+    """True when the crop itself has nothing to read.
+
+    PP-OCR looks at gray contrast. Tesseract looks at a uniform patch (every
+    pixel the same after binarization). A failed recognition is not this:
+    callers leave ``display_blank`` unset when the model is not ready, the
+    read throws, or the text is rejected.
+    """
+    if ppocr:
+        return not has_contrast(patch)
+    return not has_foreground(patch)
+
+
+def _empty_result(rect=None, *, display_blank: bool = False):
+    return TextDetectionResult("", ResultState.Empty, rect, display_blank=display_blank)
 
 
 def _apply_led_stack(rect, settings, patch):
@@ -760,10 +773,11 @@ class TextDetector:
                 patch = _apply_led_stack(rect, settings, patch)
                 color_crop = color[y0:y1, x0:x1]
                 _draw_patch(display, roi, patch)
-                if not has_contrast(patch):
+                if display_is_blank(patch, ppocr=True):
                     # a blank box (e.g. a display that is off, a black
-                    # frame): nothing to read, and a model would guess
-                    results[index] = _empty_result()
+                    # frame): nothing to read, and a model would guess.
+                    # display_blank is only this case, not "model not ready".
+                    results[index] = _empty_result(display_blank=True)
                     continue
                 skip_patch = None
                 if settings.get("skip_similar_image"):
@@ -861,13 +875,13 @@ class TextDetector:
             patch = 255 - patch
 
         dot_detector = bool(settings.get("dot_detector"))
-        if not has_foreground(patch):
+        if display_is_blank(patch, ppocr=False):
             # a blank box (every pixel the same): nothing to read and no lit dot
             # to count. Counting contours would find one (the whole patch) when
             # it is all white, which uniform areas become with Local or Adaptive
             # binarization.
             if not dot_detector:
-                return _empty_result()
+                return _empty_result(display_blank=True)
             if settings.get("skip_similar_image"):
                 # "0" is the box's new accepted read: compare with its image
                 rect.last_image = patch.copy()

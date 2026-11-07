@@ -83,6 +83,7 @@ SELF_TEST_MODULES = (
     "resource_path",
     "sc_logging",
     "screen_capture_source",
+    "shot_clock_blank",
     "source_bar",
     "source_view",
     "sports",

@@ -62,6 +62,8 @@ class TextDetectionTarget(QRectF):
         self.last_text = None
         # when the box started to be blank ("When blank", camera_thread)
         self.blank_since = None
+        # consecutive visually-blank shot-clock samples (shot_clock_blank.py)
+        self.shot_clock_blank_streak = 0
         self.mini_rects: list[QRectF] = mini_rects if mini_rects is not None else []
         # Runtime OCR state for normalize_wh_ratio (not persisted): the recent
         # character width/height ratios and the settings they were measured with.
@@ -140,6 +142,7 @@ class TextDetectionResult:
         extra=None,
         *,
         unchanged_image: bool = False,
+        display_blank: bool = False,
     ):
         self.text = text
         self.state = state
@@ -149,3 +152,6 @@ class TextDetectionResult:
         # last OCR (skip_similar_image). There is no text; the capture thread
         # reports the box's last good reading as SameNoChange instead.
         self.unchanged_image = unchanged_image
+        # The crop itself has nothing to read (no contrast / uniform pixels).
+        # Not set for a rejected read, a model that is not ready, or a miss.
+        self.display_blank = display_blank

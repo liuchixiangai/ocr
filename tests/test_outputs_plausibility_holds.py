@@ -67,6 +67,18 @@ def test_a_flicker_never_goes_out(pipeline):
     assert "Home Score" not in pipeline.holds
 
 
+def test_shot_clock_reset_goes_out_while_a_score_is_held(pipeline):
+    # A dark 24-second lamp publishes 24 (and a real 4.9 -> 14 reset does too).
+    # That must not wait on the score/clock plausibility hold.
+    pipeline(**{"24秒": "4.9", "Home_Score": "21", "Time": "8:00"})
+    pipeline(**{"24秒": "4.9", "Home_Score": "21", "Time": "8:00"})
+    out = pipeline(**{"24秒": "24", "Home_Score": "81", "Time": "1:00"})
+    by_name = {r.name: (r.result, r.result_state.name) for r in out}
+    assert by_name["24秒"] == ("24", "Success")
+    assert by_name["Home Score"] == ("21", "SameNoChange")
+    assert by_name["Time"][0] != "1:00"
+
+
 def test_a_change_the_sport_allows_goes_out_at_once(pipeline):
     pipeline(Home_Score="21")
     pipeline(Home_Score="21")
