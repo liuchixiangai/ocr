@@ -16,6 +16,7 @@ from shot_clock_blank import (
     FALLBACK_TEXT,
     SHOT_CLOCK_BLANK_SETTING,
     apply_shot_clock_blank,
+    is_visual_blank_result,
     plausibility_skip_names,
     setting_enabled,
 )
@@ -131,6 +132,26 @@ def test_low_confidence_and_other_empties_do_not_become_24(make_target):
     # skip-similar still shows the last digits
     assert _apply(shot, _reading("", "SameNoChange", unchanged=True)) is None
     assert shot.shot_clock_blank_streak == 0
+    # a Success or FailedFilter must never count as a dark lamp, even if the
+    # flag were set by mistake
+    assert (
+        _apply(shot, _reading("4.9", "Success", display_blank=True), enabled=True)
+        is None
+    )
+    assert _apply(shot, _reading("8", "FailedFilter", display_blank=True)) is None
+    assert shot.last_text == "14"
+
+
+def test_visual_blank_is_only_an_empty_dark_crop():
+    assert is_visual_blank_result(_reading("", display_blank=True))
+    assert not is_visual_blank_result(_reading("", "Empty"))
+    assert not is_visual_blank_result(_reading("8", "FailedFilter"))
+    assert not is_visual_blank_result(_reading("4.9", "Success"))
+    assert not is_visual_blank_result(_reading("4.9", "Success", display_blank=True))
+    assert not is_visual_blank_result(
+        _reading("", "SameNoChange", display_blank=True, unchanged=True)
+    )
+    assert not is_visual_blank_result(_reading("24", "Empty", display_blank=True))
 
 
 def test_switch_off_keeps_the_old_blank_path(make_target):
@@ -321,9 +342,40 @@ def test_pipeline_blank_then_24_then_the_digit_and_other_fields(capture, make_ta
     assert _cell(cycles[2], "比赛时间") == ("7:59", "Success", False)
     assert _cell(cycles[2], "主队得分") == ("12", "Success", False)
     assert _cell(cycles[2], "总计") == ("7:59", "Success", False)
-    # the digit replaces 24 on that same sample
+    # the digit replaces 24 on that same sample — no extra Empty/24 in between
+    assert [_cell(c, "24秒")[0] for c in cycles] == ["4.9", "", "24", "14"]
     assert _cell(cycles[3], "24秒") == ("14", "Success", False)
     assert _cell(cycles[3], "比赛时间") == ("7:58", "Success", False)
+
+
+def test_led_scan_flicker_never_publishes_24(capture, make_target):
+    _, run = capture
+    frames = [{"24秒": ("4.9", "Success")}]
+    for text in ("4.8", "4.7", "4.6", "4.5"):
+        frames.append({"24秒": "display_blank"})
+        frames.append({"24秒": (text, "Success")})
+    cycles = run([make_target("24秒")], frames, step=0.05)
+    published = [_cell(cycle, "24秒") for cycle in cycles]
+    assert published[0] == ("4.9", "Success", False)
+    for i, text in enumerate(("4.8", "4.7", "4.6", "4.5"), start=1):
+        blank, digit = published[2 * i - 1], published[2 * i]
+        assert blank == ("", "Empty", False)
+        assert digit[0] == text
+        assert digit[2] is False
+    assert "24" not in [cell[0] for cell in published]
+
+
+def test_ocr_empty_without_a_dark_crop_never_publishes_24(capture, make_target):
+    _, run = capture
+    cycles = run(
+        [make_target("24秒")],
+        [{"24秒": ("4.9", "Success")}] + [{"24秒": ("", "Empty")}] * 6,
+        step=0.05,
+    )
+    assert [_cell(cycle, "24秒")[0:2] for cycle in cycles] == [("4.9", "Success")] + [
+        ("", "Empty")
+    ] * 6
+    assert all(not _cell(cycle, "24秒")[2] for cycle in cycles)
 
 
 def test_zero_tenth_and_fourteen_survive_a_single_dark_frame(capture, make_target):
@@ -557,3 +609,21 @@ def test_a_dark_crop_is_display_blank_and_a_failed_read_is_not(make_target):
     # the model is not ready: empty, but the crop is not a dark lamp
     assert not_ready[0].state == ResultState.Empty
     assert not_ready[0].display_blank is False
+
+    empty_ocr = detector._finish_reading(shot, shot.settings, "", None)
+    assert empty_ocr.state == ResultState.Empty
+    assert empty_ocr.display_blank is False
+    assert not is_visual_blank_result(empty_ocr)
+
+    from tesseract import display_is_blank, has_contrast
+
+    assert display_is_blank(flat, ppocr=True)
+    assert display_is_blank(flat, ppocr=False)
+    assert has_contrast(contrasted)
+    assert not display_is_blank(contrasted, ppocr=True)
+    noise = np.full((24, 48), 8, np.uint8)
+    noise[0, 0] = 9
+    # Tesseract: one different pixel is still "something to read".
+    assert display_is_blank(noise, ppocr=False) is False
+    # PP-OCR: that noise is below MIN_CROP_CONTRAST, so it is a dark lamp.
+    assert display_is_blank(noise, ppocr=True) is True
