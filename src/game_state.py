@@ -504,6 +504,8 @@ class GameEngine:
         if CLOCK in texts:
             self._read_clock(texts[CLOCK], now, events)
         if SHOT_CLOCK in texts:
+            # Not judged. A reset (a dark lamp publishing 24, or 4.9 back to 14)
+            # must reach the outputs; a plausibility hold would keep the old second.
             self._trackers[SHOT_CLOCK].text = texts[SHOT_CLOCK]
         self._check_clock_stopped(now, events)
         self._check_final(now, events)
