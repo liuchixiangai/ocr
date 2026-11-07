@@ -1,0 +1,9 @@
+{
+  "version": "2026.11.07.1",
+  "zip_url": "https://ocr.4018.cn/downloads/GuangWeiOCR-Portable.zip",
+  "sha256": "REPLACE_AFTER_SIGNING_WITH_SHA256_OF_SIGNED_ZIP",
+  "notes": "必须更新：24秒灯灭时输出24。请点「立即更新」，下载完成后关闭软件。点「下次再说」只会下次启动再提示，旧版不会后台强装。",
+  "released_at": "2026-11-07",
+  "mandatory": true,
+  "min_version": "2026.11.07.1"
+}

@@ -2712,6 +2712,13 @@ class MainWindow(QMainWindow):
             show_check_failed_dialog(self)
 
     def _finishGwUpdateCheck(self, gw, manual: bool):
+        """Show the 光为 update dialog when the site has a newer zip.
+
+        A failed or offline check never locks the app, even if a previous
+        manifest said the update was required. Startup stays quiet; only a
+        manual 检查更新 reports the failure. Required vs optional is decided
+        inside show_gw_update_dialog from the parsed manifest.
+        """
         if gw is None or describe_check is None or describe_check(gw) == "failed":
             detail = getattr(gw, "error_detail", None) if gw is not None else None
             if detail:

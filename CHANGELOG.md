@@ -13,13 +13,12 @@ ScoreSight. End users download the portable zip from
 https://ocr.4018.cn/ . OCR model weights and Tesseract `.traineddata` are not
 in this initial tree.
 
-`2026.11.03.1` (below) is a channel bump only: an Authenticode-signed
-portable republish of `2026.10.27.5` (same features; Certum OV). Nothing
-under this Unreleased heading is part of that zip.
+`2026.11.07.1` (below) is this release-prep line: 24-second blank-as-24
+plus a force-update protocol this client can honor. It is not on main
+and does not include the later main UI shell. Do not publish unsigned.
 
 ### Added
 
-- **24秒空白时输出24。** 设置页增加开关「24秒空白时输出24」，默认开。现场 24 秒灯灭、识别框里确实没有数字时，界面、`results.json` 的 `shot_clock` 和 vMix / HTTP 出站都写成字符串 `24`。只影响 24 秒（含「进攻24秒」）。`0`、`0.0`、`4.9`、`14` 等正常读数不变；闪一帧、识别失败、断流不会改成 24。数字回来的那一帧立刻恢复。关掉开关则恢复原来的空白逻辑。本次不抬便携通道版本。
 - **进阶：扫描 vMix 标题字段（API）。** vMix 出站页增加「进阶：扫描标题字段（API）」。它读取 Web Controller 的状态 XML（`GET /api/`），把当前标题里的文字字段放进映射表右列的下拉框（仍可手打）。GT 的字段名如果没有 `.Text` 会补上；XAML 和旧 Title 保持 XML 里的名字。只自动填写空格子和仍显示为光为字段原名的格子，已经改过的映射不动。日常出站仍是「给 vMix 的 JSON」。便携通道 `2026.10.27.1`：vMix API 进阶「扫描标题字段」；主推仍是 JSON 数据源。
 - **When blank: clear the value.** A new box setting, under Filtering: when the box has shown nothing for 2 seconds, the outputs can get an empty value instead of keeping its last one, which clears the text in vMix, OBS, the overlays, the files and every other output. **Clear the value, also at zero** also clears a box that reads zero (`0`, `0:00`) for 2 seconds. For a handball or hockey penalty timer that goes out at the end of the penalty; a shorter blank (a flicker, a hand in front of the board) keeps the value ([#140](https://github.com/royshil/scoresight/discussions/140)). It replaces **Skip empty values**, which had no effect since 0.2.0.
 - **Ask before closing.** Closing ScoreSight while a source is open now asks first, in both layouts, since it stops the reading and the outputs. **Don't ask again** in the question, or **File > Ask before closing**, turns it off. Stopping a headless ScoreSight (Ctrl+C, SIGTERM) and **Update now** don't ask ([#140](https://github.com/royshil/scoresight/discussions/140)).
@@ -39,6 +38,21 @@ under this Unreleased heading is part of that zip.
 - **English clock boxes keep the colon.** A box named Time (Home Score, Away Score, Period, and the other ScoreSight English field names too) was treated as a custom number. The digit-only whitelist dropped the colon, so `12:00` was published as `1200` and the clock format never matched. Those names again use the same type and format as 比赛时间, 主队得分, and the rest.
 - **Auto layout's model downloads on macOS.** The first ✨ Auto crop or ✨ Auto layout on a Mac failed with *CERTIFICATE_VERIFY_FAILED*: the download didn't use the certificates bundled with ScoreSight, and the Mac app has no others. The user guide now also says where to put the model if you download it yourself ([#140](https://github.com/royshil/scoresight/discussions/140)).
 - **Game clock reaches the files while a sport is selected.** A jump from `0:00` to a live countdown was held until one time stayed still for 3 seconds, so a clock that changes every reading never went out (`results.json` stayed at `:00.0` while the field list showed the new time in green). A legal pace is accepted after those same few seconds. Removing leading zeros no longer turns `0:00.0` into `:00.0`. A bare Chinese period numeral such as 「二」is published as `2`. Portable channel `2026.10.26.4`.
+
+## [2026.11.07.1] - 2026-11-07
+
+Portable channel `2026.11.07.1`: 24-second blank lamp publishes `"24"`,
+and this client honors `mandatory` / `min_version` in `version.json`.
+Based on signed `2026.11.03.1` (same as `2026.10.27.5` plus the channel
+bump). Does not include the later main three-column UI. Installed copies
+on `2026.10.27.5` / `2026.11.03.1` are offered this zip when site
+`version` is this string; those older clients **ignore** `mandatory` and
+still need one click on 立即更新.
+
+### Added
+
+- **24秒空白时输出24。** 设置页增加开关「24秒空白时输出24」，默认开。现场 24 秒灯灭、识别框里确实没有数字时，界面、`results.json` 的 `shot_clock` 和 vMix / HTTP 出站都写成字符串 `24`。只影响 24 秒（含「进攻24秒」）。`0`、`0.0`、`4.9`、`14` 等正常读数不变；闪一帧、识别失败、断流不会改成 24。数字回来的那一帧立刻恢复。关掉开关则恢复原来的空白逻辑。
+- **本机强制更新协议（仅 2026.11.07.1 起）。** `version.json` 可带 `mandatory` 和 `min_version`。本版本在站点版本更新且命中这些字段时，对话框标明必须更新，失败可重试，已下载的包下次启动会接着用；复制失败会尝试恢复更新前的 exe，不删配置。检查失败或离线不会锁死。已发布的 `2026.10.27.5` / `2026.11.03.1` **不读这些字段**，不能后台强装。
 
 ## [2026.11.03.1] - 2026-11-03
 

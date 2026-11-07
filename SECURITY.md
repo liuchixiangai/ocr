@@ -40,7 +40,7 @@
 
 ### 出站
 
-- 便携版每次启动会请求 `https://ocr.4018.cn/version.json`，失败后再试 `http://ocr.4018.cn/version.json` 和 `http://211.101.245.47/version.json`，整轮失败还会再试。请求带 `GuangWeiOCR/<通道版本>` User-Agent。只有你确认更新时才会下载 zip，并且必须和 `version.json` 里的 SHA-256 一致。从源码运行不会覆盖工作目录。
+- 便携版每次启动会请求 `https://ocr.4018.cn/version.json`，失败后再试 `http://ocr.4018.cn/version.json` 和 `http://211.101.245.47/version.json`，整轮失败还会再试。请求带 `GuangWeiOCR/<通道版本>` User-Agent。只有你确认更新时才会下载 zip，并且必须和 `version.json` 里的 SHA-256 一致。从源码运行不会覆盖工作目录。`2026.11.07.1` 起若清单带 `mandatory` / `min_version`，对话框会标明必须更新，失败可重试，离线不会锁死；已发布的 `2026.10.27.5` / `2026.11.03.1` 忽略这些字段，仍要用户点「立即更新」。
 - vMix、OBS、你填写的 HTTP 地址，只在你打开对应输出时连接。`http://` 不加密，只适合可信局域网。
 - 默认把 JSON 写到本机桌面 `光为OCR输出\results.json`，不上传。
 
