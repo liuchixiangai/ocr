@@ -60,6 +60,25 @@ def plausibility_skip_names(results) -> set[str]:
     return {result.name for result in results if is_blank_fallback(result)}
 
 
+def is_visual_blank_result(result) -> bool:
+    """True only when the crop itself is dark, not when OCR failed.
+
+    ``display_blank`` is set in ``tesseract`` when the gray crop has no
+    contrast (PP-OCR) or the binarized patch is uniform (Tesseract). A
+    low-confidence digit, a format rejection, an empty string from a
+    still-visible crop, skip-similar, and "model not ready" leave that
+    flag unset. Those must keep the last second, including 4.9.
+    """
+    if result is None or bool(getattr(result, "unchanged_image", False)):
+        return False
+    if not bool(getattr(result, "display_blank", False)):
+        return False
+    state = getattr(result, "state", None)
+    if state is not None and state != ResultState.Empty:
+        return False
+    return not str(getattr(result, "text", "") or "").strip()
+
+
 def _reset_streak(target) -> None:
     target.shot_clock_blank_streak = 0
 
@@ -93,10 +112,7 @@ def apply_shot_clock_blank(target, result, enabled: bool):
         _reset_streak(target)
         return None
 
-    blank = bool(getattr(result, "display_blank", False)) and not bool(
-        getattr(result, "unchanged_image", False)
-    )
-    if not blank:
+    if not is_visual_blank_result(result):
         # A real digit, a rejected read, or an empty read that is not a dark
         # crop. None of those are the lamp being off.
         _reset_streak(target)

@@ -6,6 +6,7 @@ devices or ports. Sources are opened with a fake viewer (no capture thread).
 """
 
 import csv
+import json
 from pathlib import Path
 import threading
 
@@ -1213,6 +1214,106 @@ def test_shot_clock_blank_switch_defaults_on_and_persists(make_window):
     assert not again.ui.checkBox_shotClockBlankAs24.isChecked()
     again.ui.checkBox_shotClockBlankAs24.setChecked(True)
     assert fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING, None) is True
+
+
+def test_shot_clock_blank_ui_json_and_api_agree(
+    make_window, make_result, tmp_path, monkeypatch
+):
+    import mainwindow
+    from api_output import ENCODING_JSON_SIMPLE, build_request, good_values
+    from file_output import JSON_FILE_NAME
+    from shot_clock_blank import FALLBACK_EXTRA
+    import http_server
+
+    sent_cycles = []
+    real_update = mainwindow.update_http_server
+
+    def capture_outbound(results):
+        sent_cycles.append(results)
+        return real_update(results)
+
+    monkeypatch.setattr(mainwindow, "update_http_server", capture_outbound)
+
+    window = make_window()
+    window.ui.comboBox_sport.setCurrentIndex(
+        window.ui.comboBox_sport.findData("basketball")
+    )
+    window.ui.horizontalSlider_aggsPerSecond.setValue(10)
+    window.ui.checkBox_saveJson.setChecked(True)
+    window.setOutputFolder(str(tmp_path))
+
+    def cycle(shot, home, clock, shot_state="Success", extras=None):
+        results = [
+            make_result("24秒", shot, shot_state),
+            make_result("主队得分", home),
+            make_result("比赛时间", clock),
+        ]
+        if extras:
+            results[0].extras = extras
+        window.ocrResult(results)
+        window.flushFileOutputs()
+
+    try:
+        cycle("4.9", "21", "8:01")
+        assert window.boxValueItem("24秒").text() == "4.9"
+        cycle("8", "21", "8:00", shot_state="FailedFilter")
+        assert window.boxValueItem("24秒").text() == "4.9"
+        written = json.loads((tmp_path / JSON_FILE_NAME).read_text(encoding="utf-8"))
+        assert written[0]["shot_clock"] == "4.9"
+        assert isinstance(written[0]["shot_clock"], str)
+        assert http_server._pivot_values("1")["24秒"] == "4.9"
+        cycle("", "21", "7:59", shot_state="Empty")
+        assert window.boxValueItem("24秒").text() == "4.9"
+        assert http_server._pivot_values("1")["24秒"] == "4.9"
+
+        cycle("24", "81", "1:00", extras={FALLBACK_EXTRA: True})
+        assert window.boxValueItem("24秒").text() == "24"
+        written = json.loads((tmp_path / JSON_FILE_NAME).read_text(encoding="utf-8"))
+        assert written[0]["shot_clock"] == "24"
+        assert isinstance(written[0]["shot_clock"], str)
+        assert written[0]["home_score"] == "21"
+        assert http_server._pivot_values("1")["24秒"] == "24"
+        assert http_server._pivot_values(None)["24秒"] == "24"
+        outbound = sent_cycles[-1]
+        assert good_values(outbound)["24秒"] == "24"
+        assert good_values(outbound)["主队得分"] == "21"
+        request = build_request(
+            outbound, "http://example.test/in", "POST", ENCODING_JSON_SIMPLE
+        )
+        body = json.loads(request.body.decode("utf-8"))
+        assert body["24秒"] == "24"
+        assert isinstance(body["24秒"], str)
+        assert body["主队得分"] == "21"
+
+        cycle("14", "21", "7:58")
+        assert window.boxValueItem("24秒").text() == "14"
+        written = json.loads((tmp_path / JSON_FILE_NAME).read_text(encoding="utf-8"))
+        assert written[0]["shot_clock"] == "14"
+        assert http_server._pivot_values(None)["24秒"] == "14"
+    finally:
+        http_server.update_http_server([])
+
+
+def test_unchecking_blank_switch_reaches_a_new_capture_thread(
+    make_window, memory_storage
+):
+    from camera_info import CameraInfo
+    from camera_thread import TimerThread
+    from shot_clock_blank import SHOT_CLOCK_BLANK_SETTING
+
+    window = make_window()
+    window.ui.checkBox_shotClockBlankAs24.setChecked(False)
+    assert fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING) is False
+    thread = TimerThread(
+        CameraInfo("test", "test", "x", CameraInfo.CameraType.FILE), memory_storage
+    )
+    try:
+        assert thread.shotClockBlankAs24 is False
+        window.ui.checkBox_shotClockBlankAs24.setChecked(True)
+        assert thread.shotClockBlankAs24 is True
+        assert fetch_data("scoresight.json", SHOT_CLOCK_BLANK_SETTING) is True
+    finally:
+        thread.cleanup()
 
 
 def test_when_blank_is_stored_per_box(make_window, make_target):
