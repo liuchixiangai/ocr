@@ -4,6 +4,6 @@
 # so install these into a SEPARATE virtual environment, not the app's.
 # tkinter ships with the python.org / uv Python builds.
 opencv-python==4.14.0.94
-numpy==2.5.4
+numpy==2.5.5
 pillow==12.3.0
 tqdm==4.70.1
